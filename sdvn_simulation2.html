@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Educational 5G SDVN Simulation with Plotting (Fixed - Expanded Fog)</title>
+    <!-- Load p5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <!-- Load Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* CSS Styles (remain the same as before) */
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-wrap: wrap;
+            /* Allow wrapping for smaller screens */
+            align-items: flex-start;
+            padding: 20px;
+            background-color: #f0f0f0;
+            gap: 20px;
+        }
+
+        #simulation-container {
+            /* Container for simulation + plots */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-grow: 1;
+            /* Allow it to take available space */
+            min-width: 840px;
+            /* Ensure canvas area doesn't get too squished */
+        }
+
+        #simulation-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            /* Occupy width within container */
+        }
+
+        #canvas-container {
+            border: 2px solid black;
+            margin-bottom: 10px;
+            /* Space below canvas */
+        }
+
+        #plots-container {
+            display: flex;
+            justify-content: space-around;
+            /* Space out plots */
+            flex-wrap: wrap;
+            /* Allow plots to wrap */
+            width: 100%;
+            /* Take full width of its container */
+            margin-top: 20px;
+            gap: 15px;
+        }
+
+        .plot-box {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.1);
+            width: calc(50% - 10px);
+            /* Two plots side-by-side with gap */
+            min-width: 350px;
+            /* Minimum size */
+            box-sizing: border-box;
+        }
+
+        .plot-box canvas {
+            max-width: 100%;
+        }
+
+        #controls-metrics {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            /* Space between control boxes */
+            width: 380px;
+            /* Fixed width for control column */
+            flex-shrink: 0;
+            /* Prevent controls from shrinking */
+        }
+
+        .control-box {
+            background-color: #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+            box-sizing: border-box;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            /* Stack label and input */
+        }
+
+        .control-group-row {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            /* Allow wrapping within rows if needed */
+        }
+
+        .control-group label,
+        .control-group-row label {
+            margin-bottom: 4px;
+            /* Space between label and input */
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .control-group-row label {
+            margin-bottom: 0;
+            margin-right: 5px;
+            /* Reduced margin */
+            flex-basis: 130px;
+            /* Give labels consistent width */
+            flex-shrink: 0;
+            /* Prevent labels from shrinking */
+        }
+
+        .control-group input[type="range"],
+        .control-group select {
+            width: 100%;
+            /* Make sliders/selects fill width */
+        }
+
+        .control-group-row input[type="range"] {
+            flex-grow: 1;
+        }
+
+        .control-group-row input[type="number"] {
+            width: 60px;
+            text-align: right;
+            margin-left: 5px;
+            border: 1px solid #ccc;
+            padding: 3px;
+            border-radius: 3px;
+        }
+
+        .value-display {
+            margin-left: 8px;
+            font-weight: normal;
+            min-width: 35px;
+            /* Space for value */
+            text-align: right;
+        }
+
+        .checkbox-label {
+            font-weight: normal;
+            margin-left: 5px;
+            font-size: 0.9em;
+            cursor: pointer;
+            /* Make it clear it's clickable */
+        }
+
+        .checkbox-group div {
+            margin-bottom: 3px;
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+            /* Make button full width */
+            margin-top: 10px;
+            font-size: 1em;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        h2,
+        h3,
+        h4 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            text-align: center;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+
+        h4 {
+            margin-bottom: 10px;
+            padding-bottom: 3px;
+            font-size: 1.1em;
+            text-align: left;
+            border: none;
+        }
+
+        .legend {
+            margin-top: 15px;
+            padding: 10px 15px;
+            /* Adjust padding */
+            width: 90%;
+            /* Make legend slightly narrower than canvas */
+            max-width: 600px;
+            box-sizing: border-box;
+            /* border-top: 1px solid #ccc; */
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 0.9em;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 8px;
+            border: 1px solid #555;
+            display: inline-block;
+            /* Needed for background color */
+            flex-shrink: 0;
+            /* Prevent shrinking */
+        }
+
+        #metrics-display {
+            font-size: 0.9em;
+            line-height: 1.7;
+            /* Increased line height */
+        }
+
+        #metrics-display strong {
+            display: inline-block;
+            width: 170px;
+            /* Align metric names */
+            font-weight: bold;
+        }
+
+        /* Packet Style */
+        .packet {
+            fill: orange;
+            stroke: black;
+            strokeWeight: 0.5;
+        }
+
+        .info-note {
+            font-size: 0.8em;
+            color: #444;
+            margin-top: 10px;
+            line-height: 1.3;
+        }
+
+        #info-text {
+            margin-top: 10px;
+            font-style: italic;
+            color: #333;
+            text-align: center;
+            font-size: 0.9em;
+            height: 1.2em;
+            /* Reserve space */
+        }
+
+        /* Style for plotting controls */
+        #plotting-controls .control-group-row {
+            justify-content: flex-start;
+            /* Align items to start */
+            gap: 5px 15px;
+            /* Row and column gap */
+        }
+
+        #plotting-controls label {
+            font-size: 0.85em;
+            flex-basis: 90px !important;
+            /* Adjust label width in this box */
+            margin-right: 0;
+        }
+
+        #plot-status {
+            margin-top: 10px;
+            font-style: italic;
+            color: #2a2a8f;
+            /* Blue color for status */
+            text-align: center;
+            min-height: 1.2em;
+            /* Reserve space */
+            width: 100%;
+            /* Take full width */
+        }
+    </style>
+</head>
+
+<body>
+    <!-- HTML Structure -->
+    <div id="simulation-container">
+        <div id="simulation-area">
+            <h2 style="margin-bottom: 15px; border: none;">Educational 5G SDVN Simulation</h2>
+            <div id="canvas-container"></div>
+            <div id="info-text">Initialize simulation parameters.</div>
+            <!-- Legend -->
+            <div class="legend control-box">
+                <h4>Legend</h4>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: white; border: 1px solid black;"></div> Vehicle
+                    (Normal, associated via V2V)
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #FFD700; border: 1px solid black;"></div> Vehicle
+                    (Gateway, associated via V2I)
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #DC143C; border: 1px solid black;"></div> Vehicle
+                    (Unassociated)
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #87CEEB; border: 1px solid black;"></div> RSU
+                    (Roadside Unit)
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color"
+                        style="background-color: rgba(0, 0, 255, 0.8); height: 3px; width: 20px; border: none;"></div>
+                    V2I Link (Gateway to RSU)
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color"
+                        style="background-color: rgba(0, 128, 0, 0.8); height: 3px; width: 20px; border: none;"></div>
+                    V2V Link (to Gateway, LoS OK)
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color"
+                        style="border: 1px dashed rgba(255, 0, 0, 0.8); background: transparent; height: 3px; width: 20px;">
+                    </div> V2V Link (to Gateway, Blocked)
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color"
+                        style="border: 2px dashed rgba(100, 100, 100, 0.5); background: transparent; width: 15px; height: 15px; border-radius: 50%;">
+                    </div> RSU Range (for Gateway Selection)
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color"
+                        style="background-color: orange; border-radius: 50%; border: 1px solid black;"></div> Data
+                    Packet (Vehicle -> Gateway -> RSU)
+                </div>
+                 <div class="legend-item">
+                    <span style="font-size:0.85em; font-style:italic;">Note: V2V Links represent *conceptual* multihop path to Gateway. Fog cell can extend beyond RSU range.</span>
+                </div>
+            </div>
+        </div> <!-- End #simulation-area -->
+
+        <!-- Plots Container -->
+        <div id="plots-container">
+            <div class="plot-box">
+                <h4>Delay vs. Vehicle Density (Fig 4 Style)</h4>
+                <canvas id="delayPlotCanvas"></canvas>
+            </div>
+            <div class="plot-box">
+                <h4>Throughput vs. Vehicle Count (Fig 5 Style)</h4>
+                <canvas id="throughputPlotCanvas"></canvas>
+            </div>
+        </div><!-- End #plots-container -->
+    </div> <!-- End #simulation-container -->
+
+
+    <div id="controls-metrics">
+        <!-- Simulation Settings -->
+        <div id="controls" class="control-box">
+            <h3>Simulation Settings</h3>
+            <div class="control-group-row">
+                <label for="numVehiclesSlider">Vehicles (N):</label>
+                <input type="range" id="numVehiclesSlider" min="10" max="150" value="50" step="1">
+                <span id="numVehiclesValue" class="value-display">50</span>
+            </div>
+            <div class="control-group-row">
+                <label for="vehicleSpeedSlider">Avg. Veh. Speed:</label>
+                <input type="range" id="vehicleSpeedSlider" min="0.5" max="5" value="2" step="0.1">
+                <span id="vehicleSpeedValue" class="value-display">2.0</span>
+            </div>
+            <div class="control-group-row">
+                <label for="rsuRangeSlider">RSU Range (m, Gateway):</label> <!-- Clarified Label -->
+                <input type="range" id="rsuRangeSlider" min="50" max="300" value="150" step="5"> <!-- Increased max -->
+                <span id="rsuRangeValue" class="value-display">150</span>
+            </div>
+            <div class="control-group-row">
+                <label for="v2vRangeSlider">mmWave V2V Hop Range (m):</label>
+                <input type="range" id="v2vRangeSlider" min="20" max="100" value="50" step="5">
+                <span id="v2vRangeValue" class="value-display">50</span>
+            </div>
+             <div class="control-group-row"> <!-- NEW CONTROL -->
+                <label for="maxHopsSlider">Max V2V Hops (Fog Cell):</label>
+                <input type="range" id="maxHopsSlider" min="1" max="20" value="10" step="1">
+                <span id="maxHopsValue" class="value-display">10</span>
+            </div>
+            <div class="control-group">
+                <label for="throughputModeSelect">Throughput Mode:</label>
+                <select id="throughputModeSelect">
+                    <option value="average">Average Allocation</option>
+                    <option value="adaptive" selected>Adaptive Allocation</option>
+                </select>
+            </div>
+            <div class="control-group checkbox-group">
+                <label>Display Options:</label>
+                <div>
+                    <input type="checkbox" id="showV2ICheckbox" checked> <label for="showV2ICheckbox"
+                        class="checkbox-label">V2I Links</label>
+                </div>
+                <div>
+                    <input type="checkbox" id="showV2VCheckbox" checked> <label for="showV2VCheckbox"
+                        class="checkbox-label">V2V Links (to Gateway)</label>
+                </div>
+                <div>
+                    <input type="checkbox" id="showRSURangeCheckbox" checked> <label for="showRSURangeCheckbox"
+                        class="checkbox-label">RSU Range (Gateway Sel.)</label> <!-- Clarified Label -->
+                </div>
+                <div>
+                    <input type="checkbox" id="showLoSCheckbox" checked> <label for="showLoSCheckbox"
+                        class="checkbox-label">V2V LoS Check (Blocking)</label>
+                </div>
+                <div>
+                    <input type="checkbox" id="showPacketsCheckbox" checked> <label for="showPacketsCheckbox"
+                        class="checkbox-label">Show Packets</label>
+                </div>
+                <div>
+                    <input type="checkbox" id="showDelayCheckbox" checked> <label for="showDelayCheckbox"
+                        class="checkbox-label">Show Delay (ms)</label>
+                </div>
+            </div>
+            <button id="restartButton">Restart Simulation</button>
+        </div>
+
+        <!-- Metrics Display -->
+        <div id="metrics" class="control-box">
+            <h3>Metrics (Selected RSU)</h3>
+            <div id="metrics-display">
+                Click an RSU on the canvas to see its Fog Cell metrics.
+            </div>
+            <p class="info-note">Note: Metrics for selected RSU's Fog Cell. Delay is avg. E2E (Veh->GW->RSU) via multihop V2V. Vehicles outside RSU range can connect via V2V to Gateway if within Max Hops distance.</p>
+        </div>
+
+        <!-- Physics Parameters -->
+        <div id="physics-params" class="control-box">
+            <h3>Physics Parameters (Delay Calculation)</h3>
+            <div class="control-group-row">
+                <label for="txPowerSlider">Tx Power (dBm):</label>
+                <input type="range" id="txPowerSlider" min="10" max="30" value="23" step="1">
+                <span id="txPowerValue" class="value-display">23</span>
+            </div>
+            <div class="control-group-row">
+                <label for="snrThresholdSlider">SNR Threshold (θ dB):</label>
+                <input type="range" id="snrThresholdSlider" min="-5" max="15" value="5" step="0.5">
+                <span id="snrThresholdValue" class="value-display">5.0</span>
+            </div>
+            <div class="control-group-row">
+                <label for="tSlotSlider">t_slot (µs):</label>
+                <input type="range" id="tSlotSlider" min="1" max="20" value="5" step="1">
+                <span id="tSlotValue" class="value-display">5</span>
+            </div>
+            <div class="control-group-row">
+                <label for="tRetransSlider">t_retrans (µs):</label>
+                <input type="range" id="tRetransSlider" min="1" max="20" value="5" step="1">
+                <span id="tRetransValue" class="value-display">5</span>
+            </div>
+            <p class="info-note"> Path Loss PL(dB) = 69.6 + 20.9*log10(dist_m) + N(0, σ²=3²). <br> Noise = N₀(-174) +
+                10log10(BW=2GHz) + NF(5dB) ≈ -76 dBm.</p>
+        </div>
+
+        <!-- Plotting Controls -->
+        <div id="plotting-controls" class="control-box">
+            <h3>Run Experiment & Plot</h3>
+            <p class="info-note">Reduce 'Frames/Step' or 'Max N' if plotting is too slow or freezes.</p>
+            <div class="control-group-row">
+                <label for="plotParamSelect">Sweep Param:</label>
+                <select id="plotParamSelect" style="flex-grow:1;">
+                    <option value="numVehicles" selected>Vehicle Count (N)</option>
+                    <!-- Add density later if needed, start with count -->
+                </select>
+            </div>
+            <div class="control-group-row">
+                <label for="plotMinVehicles">Min N:</label>
+                <input type="number" id="plotMinVehicles" value="10" min="1">
+                <label for="plotMaxVehicles">Max N:</label>
+                <input type="number" id="plotMaxVehicles" value="150" min="1">
+            </div>
+            <div class="control-group-row">
+                <label for="plotStepVehicles">Step:</label>
+                <input type="number" id="plotStepVehicles" value="10" min="1">
+                <label for="plotFrames">Frames/Step:</label>
+                <input type="number" id="plotFrames" value="50" min="10">
+            </div>
+            <div id="plot-status">Ready to plot.</div>
+            <button id="runPlotButton">Run & Plot Experiment</button>
+        </div>
+
+    </div> <!-- End controls-metrics -->
+
+
+    <script>
+        // --- P5.js Sketch Instance Mode ---
+        const sketch = (p) => {
+
+            // ========================================================================
+            // --- Simulation Variables (Based on IEEE ComMag July 2017 Paper) ---
+            // Key concepts implemented/refined:
+            // 1. Fog Cell: RSU + associated vehicles.
+            // 2. Gateway Vehicle: Selected from vehicles *within* RSU range. Connects via V2I.
+            // 3. Multihop V2V (Abstracted):
+            //    - Association: Vehicles *outside* RSU range can associate if they can reach the Gateway
+            //      within a max V2V distance (maxHops * hopRange). -> **Fog cell expands.**
+            //    - Delay Calculation: Uses total distance (Veh->GW) and hop range to estimate multihop delay.
+            //    - Visualization: Still shows direct Veh->GW link for simplicity, but association is broader.
+            // 4. Adaptive vs. Average Throughput Allocation within the cell.
+            // 5. Delay & Throughput metrics calculated per RSU cell.
+            // 6. Physics-based delay using path loss, SNR threshold (Fig 4 params).
+            // ========================================================================
+
+            // --- Simulation State ---
+            let vehicles = [];
+            let rsus = [];
+            let packets = [];
+            let numVehicles = 50;
+            let vehicleAvgSpeed = 2;
+            let rsuRange = 150;         // Range for RSU to select a *Gateway* vehicle
+            let maxV2VHopRange = 50;    // Max range for a SINGLE mmWave V2V hop
+            let maxV2VHops = 10;        // **NEW** Max number of V2V hops allowed to reach the gateway for association
+            let maxV2VReachDistance;    // Calculated in setup: maxV2VHops * maxV2VHopRange
+            let selectedRSU = null;
+            let infoText = "Initializing...";
+
+            // --- Display Toggles ---
+            let showV2I = true;
+            let showV2V = true;
+            let showRSURange = true;    // Show the RSU's *gateway selection* range
+            let showLoS = true;
+            let showPackets = true;
+            let showDelay = true;
+            let throughputMode = 'adaptive';
+
+            // --- Physics & Delay Parameters ---
+            let P_tx_dBm = 23;
+            let theta_dB = 5;
+            let t_slot_us = 5;
+            let t_retran_us = 5;
+            const W_mmWave_Hz = 2e9;
+            const N0_dBm_Hz = -174;
+            const NF_dB = 5;
+            let NoisePower_dBm;
+            const PL_sigma = 3;
+
+            // --- Throughput Parameters ---
+            const C_total_Mbps = 1000;
+            const B_ave_Mbps = 33;
+
+            // --- Canvas & Layout ---
+            const canvasWidth = 800;
+            const canvasHeight = 500;
+            const roadMargin = 60;
+            const roadHeight = 40;
+            const numRoads = 3;
+
+            // --- Plotting Variables ---
+            let delayChart = null;
+            let throughputChart = null;
+            let isPlotting = false;
+            let plotStatusText = "Ready to plot.";
+
+
+            // --- Complementary Error Function (erfc) Approximation ---
+            function erfc(x) { try { const t = 1.0 / (1.0 + 0.5 * Math.abs(x)); const poly = t * (0.17087277 + t * (-0.82215223 + t * (1.48851587 + t * (-1.13520398 + t * 0.27886807)))); const ans = t * Math.exp(-x * x - 1.26551223 + poly); return (x >= 0) ? ans : 2.0 - ans; } catch (e) { console.error("Error in erfc calculation for x =", x, e); return x >= 0 ? 0 : 2; } }
+
+            // --- Probability Calculation Helper (Normal CDF) ---
+            function normalCDF(val, mean, stddev) { if (stddev <= 1e-9) return val >= mean ? 1.0 : 0.0; try { const z = (val - mean) / stddev; if (!isFinite(z)) { console.warn(`normalCDF non-finite z (val=${val}, mean=${mean}, stddev=${stddev})`); return (val >= mean) ? 1.0 : 0.0; } return 0.5 * erfc(-z / Math.sqrt(2.0)); } catch (e) { console.error("Error in normalCDF calculation:", e); return 0.5; } }
+
+            p.setup = () => {
+                console.log("p5 setup starting");
+                try {
+                    let canvas = p.createCanvas(canvasWidth, canvasHeight);
+                    canvas.parent('canvas-container');
+                    canvas.mousePressed(handleMousePressed);
+
+                    // Calculate Noise Power once
+                    NoisePower_dBm = N0_dBm_Hz + 10 * Math.log10(W_mmWave_Hz) + NF_dB;
+                    // Calculate initial max V2V reach distance
+                    maxV2VReachDistance = maxV2VHops * maxV2VHopRange;
+
+                    setupControls(); // Setup interactive controls
+                    setupPlotting(); // Setup plotting controls and charts
+
+                    initializeSimulation(); // Initial setup for interactive mode
+                    p.frameRate(30);
+                    console.log("p5 setup complete");
+                } catch (e) {
+                    console.error("Error during p5 setup:", e);
+                    alert("Error during setup. Check console (F12).");
+                }
+            };
+
+            p.draw = () => {
+                if (isPlotting) return; // Skip drawing during plot calculation
+
+                try {
+                    // --- Interactive Mode Drawing & Simulation Update ---
+                    p.background(220);
+                    drawRoads();
+                    updateAndDrawRSUs(); // Draw RSUs and their range
+
+                    // Core Simulation Logic Per Frame:
+                    updateAndDrawVehicles(); // Move, Associate (incl. expanded fog), Check LoS, Draw, Gen packets
+                    calculateMetrics(throughputMode); // Calculate delay & throughput
+                    drawLinksAndInfo();     // Draw V2I/V2V links & delay text
+                    updateAndDrawPackets(); // Move and draw packets
+                    displayMetrics();       // Update metrics display panel
+                    updateInfoDisplay();    // Update general info text
+                    updatePlotStatusDisplay(); // Update plot status text
+                } catch (e) {
+                    console.error("Error during p5 draw loop:", e);
+                    p.noLoop(); // Stop draw loop on error
+                    alert("Error during simulation draw. Check console (F12). Simulation stopped.");
+                    infoText = "Error! Simulation stopped. Check console (F12).";
+                    plotStatusText = "Error occurred.";
+                    updateInfoDisplay();
+                    updatePlotStatusDisplay();
+                }
+            };
+
+            // --- Simulation Initialization and Reset ---
+            function initializeSimulation(overrideNumVehicles = null, plotMode = false) {
+                let sliderN = parseInt(document.querySelector('#numVehiclesSlider').value);
+                let currentN = overrideNumVehicles !== null ? overrideNumVehicles : sliderN;
+                if (overrideNumVehicles === null || !plotMode) {
+                    numVehicles = currentN;
+                    document.querySelector('#numVehiclesValue').textContent = currentN;
+                }
+
+                if (!rsus || rsus.length === 0) {
+                    rsus = [];
+                    rsus.push(new RSU(1 * p.width / 4, roadMargin - 30));
+                    rsus.push(new RSU(3 * p.width / 4, p.height - roadMargin + 30));
+                } else {
+                    rsus.forEach(r => { r.resetState(); });
+                }
+                packets = [];
+                selectedRSU = null;
+                vehicles = [];
+                for (let i = 0; i < currentN; i++) {
+                    let roadIndex = p.floor(p.random(numRoads));
+                    let roadCenterY = roadMargin + (numRoads === 1 ? (p.height - 2 * roadMargin) / 2 : roadIndex * (p.height - 2 * roadMargin) / (numRoads - 1));
+                    let y = roadCenterY + p.random(-roadHeight / 3, roadHeight / 3);
+                    let x = p.random(p.width);
+                    let dir = p.random() > 0.5 ? 1 : -1;
+                    vehicles.push(new Vehicle(x, y, dir));
+                }
+
+                if (!plotMode) {
+                    infoText = `Simulation reset (${currentN} vehicles).`;
+                    displayMetrics();
+                }
+                console.log(`Initialized simulation with ${currentN} vehicles.`);
+            }
+
+            // --- Control Setup (Interactive) ---
+            function setupControls() {
+                // Link sliders and displays
+                const numVehiclesSlider = document.querySelector('#numVehiclesSlider');
+                const vehicleSpeedSlider = document.querySelector('#vehicleSpeedSlider');
+                const rsuRangeSlider = document.querySelector('#rsuRangeSlider');
+                const v2vRangeSlider = document.querySelector('#v2vRangeSlider');
+                const maxHopsSlider = document.querySelector('#maxHopsSlider'); // NEW
+                const txPowerSlider = document.querySelector('#txPowerSlider');
+                const snrThresholdSlider = document.querySelector('#snrThresholdSlider');
+                const tSlotSlider = document.querySelector('#tSlotSlider');
+                const tRetransSlider = document.querySelector('#tRetransSlider');
+
+                const numVehiclesValue = document.querySelector('#numVehiclesValue');
+                const vehicleSpeedValue = document.querySelector('#vehicleSpeedValue');
+                const rsuRangeValue = document.querySelector('#rsuRangeValue');
+                const v2vRangeValue = document.querySelector('#v2vRangeValue');
+                const maxHopsValue = document.querySelector('#maxHopsValue'); // NEW
+                const txPowerValue = document.querySelector('#txPowerValue');
+                const snrThresholdValue = document.querySelector('#snrThresholdValue');
+                const tSlotValue = document.querySelector('#tSlotValue');
+                const tRetransValue = document.querySelector('#tRetransValue');
+
+                // Set initial display values
+                numVehiclesValue.textContent = numVehicles;
+                vehicleSpeedValue.textContent = vehicleAvgSpeed.toFixed(1);
+                rsuRangeValue.textContent = rsuRange;
+                v2vRangeValue.textContent = maxV2VHopRange;
+                maxHopsValue.textContent = maxV2VHops; // NEW
+                txPowerValue.textContent = P_tx_dBm.toFixed(0);
+                snrThresholdValue.textContent = theta_dB.toFixed(1);
+                tSlotValue.textContent = t_slot_us;
+                tRetransValue.textContent = t_retran_us;
+
+                // Add event listeners
+                numVehiclesSlider.addEventListener('input', () => { if (!isPlotting) { let newVal = parseInt(numVehiclesSlider.value); numVehiclesValue.textContent = newVal; infoText = `Vehicle count set to ${newVal}. Press Restart to apply.`; } else { numVehiclesSlider.value = numVehicles; infoText = 'Cannot change N while plotting experiment is running.'; } });
+                vehicleSpeedSlider.addEventListener('input', () => { if (!isPlotting) { vehicleAvgSpeed = parseFloat(vehicleSpeedSlider.value); vehicleSpeedValue.textContent = vehicleAvgSpeed.toFixed(1); vehicles.forEach(v => v.updateBaseSpeed()); } else { vehicleSpeedSlider.value = vehicleAvgSpeed; } });
+                rsuRangeSlider.addEventListener('input', () => { if (!isPlotting) { rsuRange = parseInt(rsuRangeSlider.value); rsuRangeValue.textContent = rsuRange; rsus.forEach(r => r.range = rsuRange); } else { rsuRangeSlider.value = rsuRange; } });
+                v2vRangeSlider.addEventListener('input', () => { if (!isPlotting) { maxV2VHopRange = parseInt(v2vRangeSlider.value); v2vRangeValue.textContent = maxV2VHopRange; maxV2VReachDistance = maxV2VHops * maxV2VHopRange; } else { v2vRangeSlider.value = maxV2VHopRange; } }); // Update reach dist
+                maxHopsSlider.addEventListener('input', () => { if (!isPlotting) { maxV2VHops = parseInt(maxHopsSlider.value); maxHopsValue.textContent = maxV2VHops; maxV2VReachDistance = maxV2VHops * maxV2VHopRange; } else { maxHopsSlider.value = maxV2VHops; } }); // Update reach dist
+                txPowerSlider.addEventListener('input', () => { if (!isPlotting) { P_tx_dBm = parseFloat(txPowerSlider.value); txPowerValue.textContent = P_tx_dBm.toFixed(0); } else { txPowerSlider.value = P_tx_dBm; } });
+                snrThresholdSlider.addEventListener('input', () => { if (!isPlotting) { theta_dB = parseFloat(snrThresholdSlider.value); snrThresholdValue.textContent = theta_dB.toFixed(1); } else { snrThresholdSlider.value = theta_dB; } });
+                tSlotSlider.addEventListener('input', () => { if (!isPlotting) { t_slot_us = parseInt(tSlotSlider.value); tSlotValue.textContent = t_slot_us; } else { tSlotSlider.value = t_slot_us; } });
+                tRetransSlider.addEventListener('input', () => { if (!isPlotting) { t_retran_us = parseInt(tRetransSlider.value); tRetransValue.textContent = t_retran_us; } else { tRetransSlider.value = t_retran_us; } });
+
+                // Checkboxes
+                document.querySelector('#showV2ICheckbox').addEventListener('change', (e) => { showV2I = e.target.checked; });
+                document.querySelector('#showV2VCheckbox').addEventListener('change', (e) => { showV2V = e.target.checked; });
+                document.querySelector('#showRSURangeCheckbox').addEventListener('change', (e) => { showRSURange = e.target.checked; });
+                document.querySelector('#showLoSCheckbox').addEventListener('change', (e) => { showLoS = e.target.checked; });
+                document.querySelector('#showPacketsCheckbox').addEventListener('change', (e) => { showPackets = e.target.checked; });
+                document.querySelector('#showDelayCheckbox').addEventListener('change', (e) => { showDelay = e.target.checked; });
+                document.querySelector('#showV2ICheckbox').checked = showV2I;
+                document.querySelector('#showV2VCheckbox').checked = showV2V;
+                document.querySelector('#showRSURangeCheckbox').checked = showRSURange;
+                document.querySelector('#showLoSCheckbox').checked = showLoS;
+                document.querySelector('#showPacketsCheckbox').checked = showPackets;
+                document.querySelector('#showDelayCheckbox').checked = showDelay;
+
+                document.querySelector('#throughputModeSelect').addEventListener('change', (e) => { if (!isPlotting) throughputMode = e.target.value; else document.querySelector('#throughputModeSelect').value = throughputMode; });
+                document.querySelector('#throughputModeSelect').value = throughputMode;
+                document.querySelector('#restartButton').addEventListener('click', () => { if (!isPlotting) { console.log("Restart button clicked"); initializeSimulation(); } else { infoText = 'Cannot restart while plotting experiment is running.'; } });
+            }
+
+            // --- Plotting Setup (Identical to previous version) ---
+            function setupPlotting() {
+                const delayCanvasCtx = document.getElementById('delayPlotCanvas').getContext('2d');
+                const throughputCanvasCtx = document.getElementById('throughputPlotCanvas').getContext('2d');
+                const commonOptions = { responsive: true, maintainAspectRatio: true, scales: { x: { beginAtZero: true, title: { display: true, font: { weight: 'bold' } } }, y: { beginAtZero: true, title: { display: true, font: { weight: 'bold' } } } }, elements: { line: { tension: 0.1 }, point: { radius: 3 } }, animation: { duration: 200 }, plugins: { legend: { position: 'top' } } };
+                delayChart = new Chart(delayCanvasCtx, { type: 'line', data: { labels: [], datasets: [{ label: 'Avg E2E Delay (ms)', data: [], borderColor: 'rgb(255, 99, 132)', backgroundColor: 'rgba(255, 99, 132, 0.5)', fill: false, spanGaps: false }] }, options: { ...commonOptions, scales: { ...commonOptions.scales, x: { ...commonOptions.scales.x, title: { ...commonOptions.scales.x.title, text: 'Vehicle Density (veh/m)' } }, y: { ...commonOptions.scales.y, title: { ...commonOptions.scales.y.title, text: 'Avg. E2E Delay (ms)' } } } } });
+                throughputChart = new Chart(throughputCanvasCtx, { type: 'line', data: { labels: [], datasets: [{ label: 'Adaptive Allocation', data: [], borderColor: 'rgb(54, 162, 235)', backgroundColor: 'rgba(54, 162, 235, 0.5)', fill: false }, { label: 'Average Allocation', data: [], borderColor: 'rgb(255, 159, 64)', backgroundColor: 'rgba(255, 159, 64, 0.5)', fill: false, borderDash: [5, 5] }] }, options: { ...commonOptions, scales: { ...commonOptions.scales, x: { ...commonOptions.scales.x, title: { ...commonOptions.scales.x.title, text: 'Vehicle Count (N)' } }, y: { ...commonOptions.scales.y, title: { ...commonOptions.scales.y.title, text: 'Total Throughput (Mbps)' }, suggestedMax: C_total_Mbps * 1.05 } } } });
+                document.querySelector('#runPlotButton').addEventListener('click', async () => { if (!isPlotting) { console.log("Run Plot button clicked"); await startPlottingExperiment(); } else { plotStatusText = 'Plotting already in progress.'; console.warn("Plot button clicked while plotting already in progress."); } });
+            }
+
+            // --- Run Average Simulation for a Single Step (Identical to previous) ---
+            function runSimulationAverageForStep(nVehiclesForStep, targetMetric, modeOverride, framesToAverage) {
+                let accumulatedMetric = 0;
+                let validDataPointsInStep = 0;
+                try {
+                    initializeSimulation(nVehiclesForStep, true);
+                    if (!vehicles || vehicles.length !== nVehiclesForStep || !rsus || rsus.length === 0) { console.error(`Initialization failed for N=${nVehiclesForStep}`); return (targetMetric === 'delay') ? Infinity : 0; }
+                    for (let frame = 0; frame < framesToAverage; frame++) {
+                        vehicles.forEach(v => v.move());
+                        updateVehicleAssociations(); // Uses the updated logic now
+                        vehicles.forEach(v => { if (!v.isGateway && v.associatedRSU && v.associatedRSU.gatewayVehicle) { if(showLoS) v.checkLoS(vehicles); else v.v2vLinkBlocked = false; } else {v.v2vLinkBlocked = false;} });
+                        let currentThroughputMode = (modeOverride !== null) ? modeOverride : throughputMode;
+                        calculateMetrics(currentThroughputMode);
+                        let frameTotalMetric = 0;
+                        let frameValidMetricRSUCount = 0;
+                        rsus.forEach(rsu => {
+                            if (rsu.numVehiclesInCell > 0) {
+                                if (targetMetric === 'delay') { if (rsu.avgDelay !== null && isFinite(rsu.avgDelay) && rsu.avgDelay >= 0) { frameTotalMetric += rsu.avgDelay; frameValidMetricRSUCount++; } }
+                                else if (targetMetric === 'throughput') { frameTotalMetric += rsu.totalThroughput; frameValidMetricRSUCount++; }
+                            }
+                        });
+                        if (frameValidMetricRSUCount > 0) { accumulatedMetric += (frameTotalMetric / frameValidMetricRSUCount); validDataPointsInStep++; }
+                    }
+                    if (validDataPointsInStep === 0) { console.warn(`No valid data points for N=${nVehiclesForStep}, Metric=${targetMetric}`); return (targetMetric === 'delay') ? Infinity : 0; }
+                    return accumulatedMetric / validDataPointsInStep;
+                } catch (e) { console.error(`Error during runSimulationAverageForStep (N=${nVehiclesForStep}, Metric=${targetMetric}):`, e); return (targetMetric === 'delay') ? Infinity : 0; }
+            }
+
+            // --- Start Plotting Experiment (Identical to previous) ---
+            async function startPlottingExperiment() {
+                if (isPlotting) return;
+                isPlotting = true; console.log("Plotting started..."); plotStatusText = "Starting plot experiment..."; updatePlotStatusDisplay();
+                document.querySelector('#runPlotButton').disabled = true; document.querySelector('#restartButton').disabled = true;
+                document.querySelectorAll('#controls input, #controls select, #physics-params input, #plotting-controls input, #plotting-controls select').forEach(el => el.disabled = true);
+                p.noLoop(); // Stop p5 draw loop
+
+                try {
+                    let plotSettings = { param: document.querySelector('#plotParamSelect').value, minVal: parseInt(document.querySelector('#plotMinVehicles').value), maxVal: parseInt(document.querySelector('#plotMaxVehicles').value), step: parseInt(document.querySelector('#plotStepVehicles').value), framesPerStep: parseInt(document.querySelector('#plotFrames').value) };
+                    if (plotSettings.minVal >= plotSettings.maxVal || plotSettings.step <= 0 || plotSettings.framesPerStep <= 0) { throw new Error("Invalid plotting parameters."); }
+                    let plotDataDelayX = []; let plotDataDelayY = []; let plotDataThroughputX = []; let plotDataThroughputY_Adap = []; let plotDataThroughputY_Avg = [];
+                    clearPlots();
+                    for (let currentN = plotSettings.minVal; currentN <= plotSettings.maxVal; currentN += plotSettings.step) {
+                        console.log(`Plotting N = ${currentN}`); plotStatusText = `Plotting: N = ${currentN} (${plotSettings.framesPerStep} frames/step)...`; updatePlotStatusDisplay();
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                        let avgDelay = runSimulationAverageForStep(currentN, 'delay', null, plotSettings.framesPerStep);
+                        let avgThroughput_Adap = runSimulationAverageForStep(currentN, 'throughput', 'adaptive', plotSettings.framesPerStep);
+                        let avgThroughput_Avg = runSimulationAverageForStep(currentN, 'throughput', 'average', plotSettings.framesPerStep);
+                        console.log(`  N=${currentN}: Delay=${isFinite(avgDelay) ? avgDelay.toFixed(2) : 'Inf'}, Tput(Adap)=${avgThroughput_Adap.toFixed(2)}, Tput(Avg)=${avgThroughput_Avg.toFixed(2)}`);
+                        let currentDensity = currentN / canvasWidth;
+                        plotDataDelayX.push(currentDensity.toFixed(3)); plotDataDelayY.push(isFinite(avgDelay) ? avgDelay : null);
+                        plotDataThroughputX.push(currentN); plotDataThroughputY_Adap.push(avgThroughput_Adap); plotDataThroughputY_Avg.push(avgThroughput_Avg);
+                        updatePlots(plotDataDelayX, plotDataDelayY, plotDataThroughputX, plotDataThroughputY_Adap, plotDataThroughputY_Avg);
+                    }
+                    plotStatusText = "Plotting complete."; infoText = "Plotting complete. Interactive mode active."; console.log("Plotting finished successfully.");
+                } catch (e) { console.error("Error during plotting experiment:", e); plotStatusText = "Error during plotting. Check console."; infoText = "Error during plotting. Check console."; alert("Error during plotting: " + e.message + "\nCheck console (F12)."); }
+                finally {
+                    isPlotting = false; document.querySelector('#runPlotButton').disabled = false; document.querySelector('#restartButton').disabled = false;
+                    document.querySelectorAll('#controls input, #controls select, #physics-params input, #plotting-controls input, #plotting-controls select').forEach(el => el.disabled = false);
+                    updatePlotStatusDisplay(); updateInfoDisplay(); p.loop(); initializeSimulation(null, false); console.log("Plotting cleanup finished. Interactive mode resumed.");
+                }
+            }
+
+
+            // --- Plot Helper Functions (Identical) ---
+            function clearPlots() { if (delayChart) { delayChart.data.labels = []; delayChart.data.datasets[0].data = []; delayChart.update(0); } if (throughputChart) { throughputChart.data.labels = []; throughputChart.data.datasets[0].data = []; throughputChart.data.datasets[1].data = []; throughputChart.update(0); } }
+            function updatePlots(delayX, delayY, throughputX, throughputY_Adap, throughputY_Avg) { if (delayChart) { delayChart.data.labels = delayX; delayChart.data.datasets[0].data = delayY; delayChart.update(); } if (throughputChart) { throughputChart.data.labels = throughputX; throughputChart.data.datasets[0].data = throughputY_Adap; throughputChart.data.datasets[1].data = throughputY_Avg; throughputChart.update(); } }
+
+            // --- UI Update Functions (Identical) ---
+            function updateInfoDisplay() { document.querySelector('#info-text').textContent = infoText; }
+            function updatePlotStatusDisplay() { document.querySelector('#plot-status').textContent = plotStatusText; }
+
+            // --- Event Handling (Identical) ---
+            function handleMousePressed() { if (isPlotting) return; let clickedOnRSU = false; let minDistSq = Infinity; let newlySelectedRSU = null; for (const rsu of rsus) { let dSq = (p.mouseX - rsu.x) ** 2 + (p.mouseY - rsu.y) ** 2; if (dSq < (rsu.size * 2.5) ** 2 && dSq < minDistSq) { newlySelectedRSU = rsu; minDistSq = dSq; clickedOnRSU = true; } } selectedRSU = newlySelectedRSU; displayMetrics(); if (clickedOnRSU) { infoText = `Selected RSU near (${selectedRSU.x.toFixed(0)}, ${selectedRSU.y.toFixed(0)}).`; } }
+
+            // --- Drawing Functions (Identical) ---
+            function drawRoads() { p.stroke(100); p.strokeWeight(1); p.fill(150); let totalRoadAreaHeight = p.height - 2 * roadMargin; for (let i = 0; i < numRoads; i++) { let roadCenterY = roadMargin + (numRoads === 1 ? totalRoadAreaHeight / 2 : i * totalRoadAreaHeight / (numRoads - 1)); p.rect(0, roadCenterY - roadHeight / 2, p.width, roadHeight); p.strokeWeight(1.5); p.stroke(255, 255, 0, 150); p.drawingContext.setLineDash([10, 10]); p.line(0, roadCenterY, p.width, roadCenterY); p.drawingContext.setLineDash([]); } p.noStroke(); }
+            function updateAndDrawRSUs() { rsus.forEach(rsu => { rsu.draw(); if (showRSURange) rsu.drawRange(); if (rsu === selectedRSU) { p.stroke(255, 0, 0); p.strokeWeight(3); p.noFill(); p.ellipse(rsu.x, rsu.y, rsu.size * 1.8, rsu.size * 1.8); } }); p.noStroke(); }
+            function updateAndDrawPackets() { if (!showPackets) { packets = []; return; } for (let i = packets.length - 1; i >= 0; i--) { let pkt = packets[i]; pkt.move(); pkt.draw(); if (pkt.reachedDestination || !pkt.vehicle.associatedRSU || !pkt.vehicle.associatedRSU.gatewayVehicle) { packets.splice(i, 1); } } }
+            function drawLinksAndInfo() { p.strokeWeight(1); vehicles.forEach(v => { if (showDelay && v.calculatedDelay !== null && v.associatedRSU) { p.fill(0); p.textSize(9); p.textAlign(p.CENTER, p.BOTTOM); p.noStroke(); let delayText = isFinite(v.calculatedDelay) ? v.calculatedDelay.toFixed(1) + "ms" : "Inf"; p.text(delayText, v.x, v.y - v.h / 2 - 2); } if (v.associatedRSU && v.associatedRSU.gatewayVehicle) { let rsu = v.associatedRSU; let gateway = v.associatedRSU.gatewayVehicle; if (v.isGateway && showV2I) { p.stroke(0, 0, 255, 200); p.strokeWeight(2); p.line(v.x, v.y, rsu.x, rsu.y); } else if (!v.isGateway && showV2V) { let isConnected = v.calculatedDelay !== null && isFinite(v.calculatedDelay); if (isConnected) { let isBlocked = showLoS && v.v2vLinkBlocked; if (isBlocked) { p.stroke(255, 0, 0, 200); p.strokeWeight(1.5); p.drawingContext.setLineDash([3, 3]); } else { p.stroke(0, 128, 0, 200); p.strokeWeight(1.5); p.drawingContext.setLineDash([]); } p.line(v.x, v.y, gateway.x, gateway.y); p.drawingContext.setLineDash([]); } } } }); p.noStroke(); }
+
+            // --- Main Simulation Update Step ---
+            function updateAndDrawVehicles() {
+                // 1. Move all vehicles
+                vehicles.forEach(v => v.move());
+
+                // 2. Update Associations (RSU and Gateway status) - *** Uses Updated Logic ***
+                updateVehicleAssociations();
+
+                // 3. Check Line-of-Sight (Veh -> GW direct path) & Draw Vehicles + Generate Packets
+                vehicles.forEach(v => {
+                    if (!v.isGateway && v.associatedRSU && v.associatedRSU.gatewayVehicle) {
+                         if (showLoS) v.checkLoS(vehicles);
+                         else v.v2vLinkBlocked = false; // Assume not blocked if check disabled
+                    } else {
+                        v.v2vLinkBlocked = false; // Gateways or unassociated vehicles aren't blocked
+                    }
+                    v.draw();
+                    if (showPackets && v.associatedRSU && v.associatedRSU.gatewayVehicle && p.random() < 0.008) {
+                         if (!isPlotting) packets.push(new Packet(v));
+                    }
+                });
+            }
+
+            // ========================================================================
+            // --- UPDATED Vehicle Association Logic ---
+            // ========================================================================
+            function updateVehicleAssociations() {
+                // 1. Reset state for all vehicles and RSUs
+                vehicles.forEach(v => { v.resetAssociation(); });
+                rsus.forEach(r => { r.resetState(); });
+
+                // --- Step 2: Identify Gateway for each RSU ---
+                // A gateway MUST be within the RSU's direct range (`rsuRange`)
+                rsus.forEach(rsu => {
+                    let potentialGateways = [];
+                    // Find vehicles within the RSU's gateway selection range
+                    vehicles.forEach(v => {
+                        let dSq = (v.x - rsu.x) ** 2 + (v.y - rsu.y) ** 2;
+                        if (dSq < rsu.range ** 2) {
+                            potentialGateways.push({ vehicle: v, distSq: dSq });
+                        }
+                    });
+
+                    if (potentialGateways.length > 0) {
+                        // Sort potential gateways by distance (closest first)
+                        potentialGateways.sort((a, b) => a.distSq - b.distSq);
+                        // Select the closest one as the gateway
+                        let gateway = potentialGateways[0].vehicle;
+                        rsu.gatewayVehicle = gateway;      // Assign gateway to RSU
+                        gateway.isGateway = true;          // Mark vehicle as gateway
+                        gateway.associatedRSU = rsu;       // Associate gateway with RSU
+                        // Don't add to rsu.vehicles list yet, done in step 3
+                    }
+                    // Else: No vehicles in range, this RSU will have no gateway or associated vehicles this frame
+                });
+
+                // --- Step 3: Associate Non-Gateway Vehicles ---
+                // Non-gateways connect if they can reach an RSU's *gateway* via V2V
+                vehicles.forEach(v => {
+                    if (v.isGateway) {
+                        // Gateways were already associated in Step 2, add them to RSU list now
+                        if (v.associatedRSU) {
+                           v.associatedRSU.vehicles.push(v);
+                        }
+                        return; // Skip gateway vehicles
+                    }
+
+                    let bestRSU = null;
+                    let minDistToGatewaySq = Infinity;
+
+                    // Check reachability to the gateway of *each* RSU
+                    rsus.forEach(rsu => {
+                        if (rsu.gatewayVehicle) { // Does this RSU have a gateway?
+                            let gw = rsu.gatewayVehicle;
+                            let distToGwSq = (v.x - gw.x) ** 2 + (v.y - gw.y) ** 2;
+                            let distToGw = Math.sqrt(distToGwSq);
+
+                            // ** Check if vehicle is within V2V reach of the gateway **
+                            // Use the calculated maxV2VReachDistance (hops * range)
+                            if (distToGw <= maxV2VReachDistance) {
+                                // This RSU is a candidate, check if it's the *closest* gateway
+                                if (distToGwSq < minDistToGatewaySq) {
+                                    minDistToGatewaySq = distToGwSq;
+                                    bestRSU = rsu;
+                                }
+                            }
+                        }
+                    });
+
+                    // If a reachable gateway (via V2V) was found
+                    if (bestRSU) {
+                        v.associatedRSU = bestRSU;    // Associate vehicle with the RSU of the closest reachable gateway
+                        v.isGateway = false;         // Ensure marked as non-gateway
+                        bestRSU.vehicles.push(v);    // Add to the RSU's vehicle list
+                    }
+                    // Else: Vehicle remains unassociated (v.associatedRSU is still null)
+
+                }); // End loop through non-gateway vehicles
+
+                // --- Step 4: Finalize Counts ---
+                rsus.forEach(rsu => {
+                    rsu.numVehiclesInCell = rsu.vehicles.length; // Store final count
+                });
+
+            } // End updateVehicleAssociations
+
+            // --- Metrics Calculation (Identical - Relies on correct association) ---
+            function calculateMetrics(currentMode) {
+                 rsus.forEach(rsu => {
+                    rsu.avgDelay = 0; rsu.totalThroughput = 0; rsu.numVehiclesInCell = rsu.vehicles.length;
+                    if (rsu.vehicles.length === 0) return;
+
+                    let totalDelaySum = 0; let validDelayCount = 0; let totalAllocatedBw = 0; let N = rsu.numVehiclesInCell;
+                    rsu.vehicles.forEach(v => { v.requiredBw = (currentMode === 'adaptive') ? p.random(0, 2 * B_ave_Mbps) : B_ave_Mbps; });
+
+                    if (currentMode === 'average') { let bwPerVehicle = C_total_Mbps / N; rsu.vehicles.forEach(v => v.allocatedBw = bwPerVehicle); totalAllocatedBw = Math.min(C_total_Mbps, N * bwPerVehicle); }
+                    else { let totalRequestedBw = rsu.vehicles.reduce((sum, v) => sum + v.requiredBw, 0); let scalingFactor = (totalRequestedBw > C_total_Mbps) ? C_total_Mbps / totalRequestedBw : 1.0; rsu.vehicles.forEach(v => { v.allocatedBw = v.requiredBw * scalingFactor; totalAllocatedBw += v.allocatedBw; }); totalAllocatedBw = Math.min(C_total_Mbps, totalAllocatedBw); }
+                    rsu.totalThroughput = totalAllocatedBw;
+
+                    rsu.vehicles.forEach(v => {
+                        v.calculatedDelay = calculateDelay(v); // Uses the same multihop delay logic
+                        if (v.calculatedDelay !== null && isFinite(v.calculatedDelay)) { totalDelaySum += v.calculatedDelay; validDelayCount++; }
+                    });
+                    rsu.avgDelay = (validDelayCount > 0) ? (totalDelaySum / validDelayCount) : Infinity;
+                    rsu.numVehiclesWithFiniteDelay = validDelayCount;
+                 });
+            }
+
+            // --- Physics/Delay Helpers (Identical) ---
+            function calculatePathLoss(distance_m) { if (distance_m < 1) distance_m = 1; let shadowing_dB = p.randomGaussian(0, PL_sigma); return 69.6 + 20.9 * Math.log10(distance_m) + shadowing_dB; }
+            function calculatePhop(distance_m) { if (distance_m <= 0) return 1.0; if (distance_m < 1) distance_m = 1; let PL_mean_dB = 69.6 + 20.9 * Math.log10(distance_m); let pathLossThreshold_dB = P_tx_dBm - NoisePower_dBm - theta_dB; let phop = normalCDF(pathLossThreshold_dB - PL_mean_dB, 0, PL_sigma); return Math.max(1e-12, Math.min(1.0, phop)); }
+            function calculateDelay(vehicle) {
+                // Calculation logic remains the same: delay based on V2V hops to GW + V2I hop from GW.
+                // The *association* determines *if* a vehicle participates, this function calculates *how long* it takes if associated.
+                if (!vehicle.associatedRSU || !vehicle.associatedRSU.gatewayVehicle) return Infinity;
+                let rsu = vehicle.associatedRSU; let gateway = rsu.gatewayVehicle; let totalDelay_ms = 0;
+                let t_slot_ms = t_slot_us / 1000.0; let t_retran_ms = t_retran_us / 1000.0; let isReachable = true;
+
+                if (!vehicle.isGateway) {
+                    let distToGateway = p.dist(vehicle.x, vehicle.y, gateway.x, gateway.y);
+                    let isBlocked = showLoS && vehicle.v2vLinkBlocked; // Use LoS check status
+                    if (isBlocked) {
+                        isReachable = false; // If direct visual path blocked, consider unreachable for delay calc too
+                    } else {
+                        // Allow calculation even if dist > maxV2VReachDistance, as Phop will become tiny
+                        let num_v2v_hops = Math.ceil(distToGateway / maxV2VHopRange);
+                        if (num_v2v_hops <= 0) num_v2v_hops = 1;
+                        let avg_hop_dist_v2v = distToGateway / num_v2v_hops;
+                        let Phop_v2v = calculatePhop(avg_hop_dist_v2v);
+                        if (Phop_v2v < 1e-9) { isReachable = false; }
+                        else { let T_hop_v2v_ms = t_slot_ms / Phop_v2v; totalDelay_ms += num_v2v_hops * (T_hop_v2v_ms + t_retran_ms); }
+                    }
+                }
+
+                if (isReachable) {
+                    let distToRSU = p.dist(gateway.x, gateway.y, rsu.x, rsu.y);
+                    let Phop_v2i = calculatePhop(distToRSU);
+                    if (Phop_v2i < 1e-9) { isReachable = false; }
+                    else { let T_hop_v2i_ms = t_slot_ms / Phop_v2i; totalDelay_ms += T_hop_v2i_ms; }
+                }
+                return isReachable ? totalDelay_ms : Infinity;
+            }
+
+
+            // --- Display Metrics (Identical, uses calculated RSU state) ---
+            function displayMetrics() {
+                let displayDiv = document.querySelector('#metrics-display');
+                if (selectedRSU) {
+                    let N = selectedRSU.numVehiclesInCell; let gw = selectedRSU.gatewayVehicle; let finiteDelayCount = selectedRSU.numVehiclesWithFiniteDelay || 0;
+                    let avgDelayText;
+                    if (N === 0) { avgDelayText = "0 ms"; }
+                    else if (finiteDelayCount === 0) { avgDelayText = "N/A (None Reachable)"; }
+                    else if (isFinite(selectedRSU.avgDelay)){ avgDelayText = selectedRSU.avgDelay.toFixed(2) + ` ms (${finiteDelayCount}/${N} reach.)`; }
+                    else { avgDelayText = "N/A"; }
+                    let throughputText = selectedRSU.totalThroughput.toFixed(2) + ` / ${C_total_Mbps.toFixed(0)} Mbps`; let displayMode = document.querySelector('#throughputModeSelect').value;
+                    displayDiv.innerHTML = `<strong>Vehicles in Cell (N):</strong> ${N}<br><strong>Gateway Vehicle ID:</strong> ${gw ? vehicles.indexOf(gw) : 'None'}<br><strong>Avg. E2E Delay:</strong> ${avgDelayText}<br><strong>Throughput Mode:</strong> ${displayMode.charAt(0).toUpperCase() + displayMode.slice(1)}<br><strong>Total Throughput (C):</strong> ${throughputText}<br>`;
+                } else { displayDiv.innerHTML = 'Click an RSU on the canvas to see its Fog Cell metrics.'; }
+            }
+
+            // --- Classes (Vehicle, RSU, Packet - Identical to previous version) ---
+            class Vehicle {
+                constructor(x, y, direction) { this.x = x; this.y = y; this.direction = direction; this.baseSpeed = vehicleAvgSpeed; this.w = 16; this.h = 8; this.resetAssociation(); this.updateSpeed(); }
+                resetAssociation() { this.associatedRSU = null; this.isGateway = false; this.v2vLinkBlocked = false; this.calculatedDelay = null; this.requiredBw = 0; this.allocatedBw = 0; } // Removed potentialRSU as it's handled differently now
+                updateBaseSpeed() { this.baseSpeed = vehicleAvgSpeed; this.updateSpeed(); }
+                updateSpeed() { this.speed = this.baseSpeed * this.direction * p.random(0.8, 1.2); }
+                move() { this.x += this.speed; if (this.direction === 1 && this.x > p.width + this.w / 2) { this.x = -this.w / 2; this.updateSpeed(); } else if (this.direction === -1 && this.x < -this.w / 2) { this.x = p.width + this.w / 2; this.updateSpeed(); } }
+                checkLoS(allVehicles) {
+                    this.v2vLinkBlocked = false; if (!this.associatedRSU || !this.associatedRSU.gatewayVehicle || this.isGateway) return; let gw = this.associatedRSU.gatewayVehicle; let v_pos = p.createVector(this.x, this.y); let gw_pos = p.createVector(gw.x, gw.y); let linkVector = p5.Vector.sub(gw_pos, v_pos);
+                    for (let other of allVehicles) { if (other === this || other === gw) continue; let other_pos = p.createVector(other.x, other.y); let v_to_other = p5.Vector.sub(other_pos, v_pos); let projLengthNormalized = v_to_other.dot(linkVector) / linkVector.magSq(); if (projLengthNormalized > 0.01 && projLengthNormalized < 0.99) { let closestPointOnLine = p5.Vector.add(v_pos, p5.Vector.mult(linkVector, projLengthNormalized)); let distSqToLine = p5.Vector.dist(other_pos, closestPointOnLine); distSqToLine *= distSqToLine; if (distSqToLine < (other.h * 0.8) ** 2) { this.v2vLinkBlocked = true; return; } } }
+                }
+                draw() { p.push(); p.translate(this.x, this.y); p.rectMode(p.CENTER); p.strokeWeight(1); if (this.isGateway) { p.fill(255, 215, 0); p.stroke(0); } else if (this.associatedRSU) { p.fill(255); p.stroke(0); } else { p.fill(220, 20, 60); p.noStroke(); } p.rect(0, 0, this.w, this.h, 2); p.fill(50); p.noStroke(); let tipX = this.direction * (this.w / 2 - 1); let baseX = this.direction * (this.w / 4); p.triangle(baseX, -this.h / 3, baseX, this.h / 3, tipX, 0); p.pop(); }
+            }
+            class RSU { constructor(x, y) { this.x = x; this.y = y; this.range = rsuRange; this.size = 16; this.resetState(); } resetState() { this.vehicles = []; this.gatewayVehicle = null; this.avgDelay = 0; this.totalThroughput = 0; this.numVehiclesInCell = 0; this.numVehiclesWithFiniteDelay = 0;} draw() { p.push(); p.fill(135, 206, 235); p.stroke(0); p.strokeWeight(1); p.ellipse(this.x, this.y, this.size * 1.2, this.size * 1.2); p.strokeWeight(1.5); p.line(this.x, this.y, this.x, this.y - this.size * 0.8); p.pop(); } drawRange() { p.push(); p.noFill(); p.stroke(100, 100, 100, 128); p.strokeWeight(1.5); p.drawingContext.setLineDash([5, 5]); p.ellipse(this.x, this.y, this.range * 2, this.range * 2); p.drawingContext.setLineDash([]); p.pop(); } }
+            class Packet { constructor(sourceVehicle) { this.vehicle = sourceVehicle; this.x = sourceVehicle.x; this.y = sourceVehicle.y; this.size = 6; this.targetX = 0; this.targetY = 0; this.visualSpeed = 4; this.reachedGateway = sourceVehicle.isGateway; this.reachedDestination = false; this.updateTarget(); } updateTarget() { if (this.reachedDestination || !this.vehicle.associatedRSU || !this.vehicle.associatedRSU.gatewayVehicle) return; let rsu = this.vehicle.associatedRSU; let gateway = rsu.gatewayVehicle; if (!this.reachedGateway) { this.targetX = gateway.x; this.targetY = gateway.y; } else { this.targetX = rsu.x; this.targetY = rsu.y; } } move() { if (this.reachedDestination) return; this.updateTarget(); if (!this.vehicle.associatedRSU || !this.vehicle.associatedRSU.gatewayVehicle) { this.reachedDestination = true; return; } let targetVector = p.createVector(this.targetX, this.targetY); let currentVector = p.createVector(this.x, this.y); let direction = p5.Vector.sub(targetVector, currentVector); let distance = direction.mag(); if (distance < this.visualSpeed) { if (!this.reachedGateway) { this.reachedGateway = true; this.x = this.targetX; this.y = this.targetY; this.updateTarget(); } else { this.reachedDestination = true; } } else { direction.normalize(); direction.mult(this.visualSpeed); currentVector.add(direction); this.x = currentVector.x; this.y = currentVector.y; } } draw() { if (this.reachedDestination) return; p.push(); p.fill(255, 165, 0, 220); p.stroke(0); p.strokeWeight(0.5); p.ellipse(this.x, this.y, this.size, this.size); p.pop(); } }
+
+
+        }; // End of sketch function =============================================
+
+        // --- Start p5.js ---
+        try {
+            console.log("Creating p5 instance");
+            let myp5 = new p5(sketch);
+            console.log("p5 instance created");
+        } catch (e) {
+            console.error("Error creating p5 instance:", e);
+            alert("Fatal error initializing p5. Check console (F12).");
+        }
+
+    </script>
+</body>
+
+</html>

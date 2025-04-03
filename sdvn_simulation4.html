@@ -818,6 +818,100 @@
             return null; // No path found
         }
 
+        // A* search prioritizing paths with lower accumulated delay
+        function delayAwareAStar(startNode, targetNode, nodes, range) {
+            if (!startNode || !targetNode) return null;
+
+            // Heuristic function: Estimated delay based on straight-line distance
+            function heuristic(nodeA, nodeB) {
+                if (!nodeA || !nodeB) return Infinity;
+                let d = dist(nodeA.x, nodeA.y, nodeB.x, nodeB.y);
+                if (d <= 0) return 0;
+                let p_hop = calculatePhop(d);
+                // Use a simplified delay estimate for heuristic (can adjust)
+                return (p_hop >= MIN_PROB_SUCCESS) ? (T_SLOT_MS / p_hop) : Infinity;
+            }
+
+            // Priority queue (simulated with a sorted array) storing { node, path, gCost, fCost }
+            let openSet = [];
+            // Set to keep track of nodes already processed or in the openSet to avoid duplicates/cycles effectively
+            let openSetIds = new Set();
+            let closedSetIds = new Set(); // Nodes already fully explored
+
+            // Cost maps
+            let gScore = new Map(); // Cost from start to node
+
+            // Initialize
+            gScore.set(startNode.id, 0);
+            let initialFCost = heuristic(startNode, targetNode);
+            openSet.push({ node: startNode, path: [], gCost: 0, fCost: initialFCost });
+            openSetIds.add(startNode.id);
+
+            while (openSet.length > 0) {
+                // Sort openSet by fCost to get the node with the lowest cost
+                openSet.sort((a, b) => a.fCost - b.fCost);
+                let currentEntry = openSet.shift(); // Get and remove the best node
+                let currentNode = currentEntry.node;
+                openSetIds.delete(currentNode.id); // Remove from tracking set
+                closedSetIds.add(currentNode.id); // Mark as explored
+
+                // Target found?
+                if (currentNode.id === targetNode.id) {
+                    // console.log(`A* Path found: ${currentEntry.path.join('->')}, Cost: ${currentEntry.gCost.toFixed(2)}`);
+                    return currentEntry.path; // Return the path (list of IDs)
+                }
+
+                // Explore neighbors
+                for (let neighbor of nodes) {
+                    if (neighbor.id === currentNode.id || closedSetIds.has(neighbor.id)) {
+                        continue; // Skip self or already explored nodes
+                    }
+
+                    let d = dist(currentNode.x, currentNode.y, neighbor.x, neighbor.y);
+
+                    // Check if neighbor is within V2V range
+                    if (d <= range) {
+                        let p_hop = calculatePhop(d);
+
+                        // Check if the hop is viable
+                        if (p_hop >= MIN_PROB_SUCCESS) {
+                            let edgeCost = (T_SLOT_MS / p_hop) + T_RETRAN_MS; // Delay for this hop
+                            let tentative_gScore = currentEntry.gCost + edgeCost;
+
+                            // Check if this path to neighbor is better than any previous one
+                            if (tentative_gScore < (gScore.get(neighbor.id) || Infinity)) {
+                                gScore.set(neighbor.id, tentative_gScore);
+                                let fCost = tentative_gScore + heuristic(neighbor, targetNode);
+                                let newPath = [...currentEntry.path, neighbor.id];
+
+                                // If neighbor is not already in openSet, add it
+                                if (!openSetIds.has(neighbor.id)) {
+                                    openSet.push({ node: neighbor, path: newPath, gCost: tentative_gScore, fCost: fCost });
+                                    openSetIds.add(neighbor.id);
+                                } else {
+                                    // If it is in openSet, update it if this path is better (shouldn't happen often with sorted pop)
+                                    // This part is tricky with array simulation; a real priority queue handles updates better.
+                                    // For simplicity, we might just add it again and let the sort handle it,
+                                    // or find and update (less efficient with array). Let's just add.
+                                    let existingIndex = openSet.findIndex(item => item.node.id === neighbor.id);
+                                    if (existingIndex > -1 && openSet[existingIndex].gCost > tentative_gScore) {
+                                        openSet[existingIndex] = { node: neighbor, path: newPath, gCost: tentative_gScore, fCost: fCost };
+                                    } else if (existingIndex === -1) {
+                                        // This case should ideally not be needed if openSetIds is correct, but as fallback:
+                                        openSet.push({ node: neighbor, path: newPath, gCost: tentative_gScore, fCost: fCost });
+                                        openSetIds.add(neighbor.id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // console.log(`A* No path found from ${startNode.id} to ${targetNode.id}`);
+            return null; // No path found
+        }
+
         // SDN Controller Object (need to be more complex logic)
         const sdnController = {
             // Selects the gateway based on the best V2I link quality (Phop)
@@ -837,10 +931,10 @@
                 return bestGatewayId;
             },
 
-            // Route optimization logic - uses quality-aware BFS
+            // Route optimization logic - uses Delay-Aware A*
             optimizeRoute: function(startNode, targetNode, nodes, range) {
-                // console.log(`Controller optimizing route from V${startNode.id} to V${targetNode.id}`);
-                return qualityAwareBfs(startNode, targetNode, nodes, range);
+                // console.log(`Controller optimizing route from V${startNode.id} to V${targetNode.id} using A*`);
+                return delayAwareAStar(startNode, targetNode, nodes, range);
             },
 
             // Dynamic Bandwidth Allocation Logic

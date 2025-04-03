@@ -643,18 +643,12 @@
 
             rsuArray.forEach((rsu) => {
                 let potentialGateways = vehicleArray.filter(v => v.associatedRSU === rsu.id && v.isInDirectRange);
-                let closestGatewayDist = Infinity;
-                let gatewayVehicleId = null;
 
-                potentialGateways.forEach(v => {
-                    let d = dist(v.x, v.y, rsu.x, rsu.y);
-                    if (d < closestGatewayDist) {
-                        closestGatewayDist = d;
-                        gatewayVehicleId = v.id;
-                    }
-                });
+                // *** SDN Controller Logic: Gateway Selection ***
+                let gatewayVehicleId = sdnController.selectGateway(rsu, potentialGateways);
+                // ***********************************************
 
-                rsu.gatewayVehicleId = gatewayVehicleId; // Store ID
+                rsu.gatewayVehicleId = gatewayVehicleId; // Store ID selected by controller
 
                 vehicleArray.forEach(v => {
                     if (v.associatedRSU === rsu.id) {
@@ -691,7 +685,9 @@
                 }
                 else if (v.needsMultihop) {
                     let fogCellVehicles = vehicleArray.filter(ov => ov.associatedRSU === v.associatedRSU);
-                    v.multihopPath = bfs(v, gateway, fogCellVehicles, currentV2vRangeVisual);
+                    // *** SDN Controller Logic: Route Optimization ***
+                    v.multihopPath = sdnController.optimizeRoute(v, gateway, fogCellVehicles, currentV2vRangeVisual);
+                    // ***********************************************
 
                     if (v.multihopPath && v.multihopPath.length > 0) {
                         let currentHopNode = v;
@@ -754,7 +750,7 @@
             });
         }
 
-        // BFS remains the same (uses passed nodes and range)
+        // Standard BFS (kept for reference or potential fallback)
         function bfs(startNode, targetNode, nodes, range) {
             if (!startNode || !targetNode) return null;
             let queue = [{ node: startNode, path: [] }];
@@ -780,17 +776,78 @@
             return null; // No path found
         }
 
-        // Modified to RETURN metrics instead of only displaying
-        function calculateMetrics(vehicleArray, rsuArray, currentBwMode, currentBwPerRsu) {
-            let totalDelaySum = 0;
-            let connectedVehicleCount = 0;
-            let totalSystemThroughput = 0;
+        // Modified BFS that prioritizes neighbors with higher Phop (link quality)
+        function qualityAwareBfs(startNode, targetNode, nodes, range) {
+            if (!startNode || !targetNode) return null;
+            let queue = [{ node: startNode, path: [] }];
+            let visited = new Set([startNode.id]);
 
-            rsuArray.forEach(rsu => {
-                let associatedVehicles = vehicleArray.filter(v => v.associatedRSU === rsu.id);
-                let connectedVehiclesInCell = associatedVehicles.filter(v => v.calculatedDelay !== Infinity);
+            while (queue.length > 0) {
+                let current = queue.shift();
+                let currentNode = current.node;
+                let currentPath = current.path;
+
+                // Find potential neighbors within range
+                let potentialNeighbors = [];
+                for (let neighbor of nodes) {
+                    if (neighbor.id !== currentNode.id && !visited.has(neighbor.id)) {
+                        let d = dist(currentNode.x, currentNode.y, neighbor.x, neighbor.y);
+                        if (d <= range) {
+                            let phop = calculatePhop(d);
+                            if (phop >= MIN_PROB_SUCCESS) { // Only consider viable hops
+                                potentialNeighbors.push({ node: neighbor, phop: phop });
+                            }
+                        }
+                    }
+                }
+
+                // Sort neighbors by Phop (descending) - higher quality first
+                potentialNeighbors.sort((a, b) => b.phop - a.phop);
+
+                // Add sorted neighbors to the queue
+                for (let item of potentialNeighbors) {
+                    let neighborNode = item.node;
+                    if (!visited.has(neighborNode.id)) { // Double-check visited status
+                        let newPath = [...currentPath, neighborNode.id];
+                        if (neighborNode.id === targetNode.id) return newPath; // Found target
+                        visited.add(neighborNode.id);
+                        queue.push({ node: neighborNode, path: newPath });
+                    }
+                }
+            }
+            return null; // No path found
+        }
+
+        // SDN Controller Object (need to be more complex logic)
+        const sdnController = {
+            // Selects the gateway based on the best V2I link quality (Phop)
+            selectGateway: function(rsu, potentialGateways) {
+                let bestGatewayId = null;
+                let highestPhop = -1;
+
+                potentialGateways.forEach(v => {
+                    let d = dist(v.x, v.y, rsu.x, rsu.y);
+                    let phop = calculatePhop(d); // Calculate link quality
+                    if (phop > highestPhop) {
+                        highestPhop = phop;
+                        bestGatewayId = v.id;
+                    }
+                });
+                // console.log(`Controller selected GW ${bestGatewayId} for RSU ${rsu.id} (Phop: ${highestPhop.toFixed(3)})`);
+                return bestGatewayId;
+            },
+
+            // Route optimization logic - uses quality-aware BFS
+            optimizeRoute: function(startNode, targetNode, nodes, range) {
+                // console.log(`Controller optimizing route from V${startNode.id} to V${targetNode.id}`);
+                return qualityAwareBfs(startNode, targetNode, nodes, range);
+            },
+
+            // Dynamic Bandwidth Allocation Logic
+            allocateBandwidth: function(rsu, associatedVehicles, currentBwMode, currentBwPerRsu) {
                 let numAssociated = associatedVehicles.length;
                 let rsuThroughput = 0;
+                let connectedVehiclesInCell = associatedVehicles.filter(v => v.calculatedDelay !== Infinity);
 
                 // Clear previous allocations for this RSU's vehicles
                 associatedVehicles.forEach(v => v.allocatedBandwidth = 0);
@@ -820,7 +877,26 @@
                         });
                     }
                 }
+                // The controller decides the allocation and calculates the resulting throughput for this RSU
+                // console.log(`Controller allocated BW for RSU ${rsu.id}, resulting throughput: ${rsuThroughput.toFixed(2)}`);
+                return rsuThroughput;
+            }
+        };
+
+        // Modified to RETURN metrics instead of only displaying
+        function calculateMetrics(vehicleArray, rsuArray, currentBwMode, currentBwPerRsu) {
+            let totalDelaySum = 0;
+            let connectedVehicleCount = 0;
+            let totalSystemThroughput = 0;
+
+            rsuArray.forEach(rsu => {
+                let associatedVehicles = vehicleArray.filter(v => v.associatedRSU === rsu.id);
+
+                // *** SDN Controller Logic: Bandwidth Allocation ***
+                // The controller handles allocation and returns the throughput for this RSU
+                let rsuThroughput = sdnController.allocateBandwidth(rsu, associatedVehicles, currentBwMode, currentBwPerRsu);
                 totalSystemThroughput += rsuThroughput;
+                // *************************************************
             });
 
             vehicleArray.forEach(v => {

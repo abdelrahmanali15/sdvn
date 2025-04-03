@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5G SDVN Simulation - Probabilistic Delay</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.dom.min.js"></script>
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            background-color: #f0f0f0;
+        }
+
+        #canvas-container {
+            margin-right: 20px;
+            border: 1px solid #ccc;
+            background-color: #ffffff;
+            /* White canvas background */
+        }
+
+        #controls {
+            padding: 15px;
+            background-color: #e9e9e9;
+            border-radius: 5px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+            width: 270px; /* Slightly wider for new params */
+        }
+
+        #controls label,
+        #controls p {
+            display: block;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+
+        #controls button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        #controls input[type="range"] {
+            width: 100%;
+        }
+
+         #controls input[type="number"] { /* Style for number inputs */
+            width: 60px;
+            font-size: 11px;
+            margin-left: 5px;
+        }
+
+        #infoBox {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 11px;
+            min-height: 50px;
+            line-height: 1.4;
+        }
+
+        #metricsBox {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #dff0d8;
+            /* Light green */
+            border: 1px solid #c8e5bc;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        .metric-value {
+            font-weight: bold;
+            color: #3c763d;
+            /* Darker green */
+        }
+         .param-group {
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid #ccc;
+        }
+         .param-group p {
+             font-weight: bold;
+             margin-bottom: 5px;
+             margin-top: 0;
+             font-size: 13px;
+         }
+
+        h3 {
+            margin-top: 0;
+            font-size: 16px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="canvas-container"></div>
+    <div id="controls">
+        <h3>5G SDVN Simulation Controls</h3>
+
+        <div class="param-group">
+            <p>Scenario Parameters</p>
+            <label for="numVehiclesSlider">Number of Vehicles: <span id="numVehiclesValue">50</span></label>
+            <input type="range" id="numVehiclesSlider" min="5" max="150" value="50">
+
+            <label for="speedSlider">Vehicle Speed Factor: <span id="speedValue">1.0</span></label>
+            <input type="range" id="speedSlider" min="0.1" max="3" value="1.0" step="0.1">
+
+            <label for="rsuRangeSlider">RSU Visual Range (m): <span id="rsuRangeValue">150</span></label>
+            <input type="range" id="rsuRangeSlider" min="50" max="500" value="150">
+
+            <label for="v2vRangeSlider">V2V Visual Range (m): <span id="v2vRangeValue">70</span></label>
+            <input type="range" id="v2vRangeSlider" min="20" max="200" value="70">
+        </div>
+
+        <div class="param-group">
+            <p>Bandwidth & Paths</p>
+             <label for="bandwidthSlider">BW/RSU (Mbps): <span id="bandwidthValue">1000</span></label>
+             <input type="range" id="bandwidthSlider" min="100" max="5000" value="1000" step="100">
+             <button id="bwModeButton">BW Mode: Average</button>
+             <button id="pathVizButton">Show Paths: OFF</button>
+        </div>
+
+         <div class="param-group">
+            <p>Probabilistic Delay Model Params</p>
+            <label for="ptxInput">P_tx (dBm):
+                 <input type="number" id="ptxInput" value="20" step="1">
+            </label>
+            <label for="snrThresholdInput">SNR Threshold (dB):
+                 <input type="number" id="snrThresholdInput" value="10" step="1">
+            </label>
+            <label for="plSigmaInput">Path Loss Sigma (dB):
+                 <input type="number" id="plSigmaInput" value="3" step="0.5">
+            </label>
+             <label for="tSlotInput">Time Slot (ms):
+                 <input type="number" id="tSlotInput" value="0.5" step="0.1">
+            </label>
+             <label for="tRetransInput">Retrans. Delay (ms):
+                 <input type="number" id="tRetransInput" value="0.1" step="0.05">
+            </label>
+        </div>
+
+
+        <div id="metricsBox">
+            <h4>Live Metrics</h4>
+            Avg. Delay: <span id="avgDelayValue" class="metric-value">N/A</span> ms<br>
+            Total Throughput: <span id="totalThroughputValue" class="metric-value">N/A</span> Mbps
+        </div>
+
+        <div id="infoBox">
+            Hover over a vehicle to see details.
+        </div>
+        <p style="font-size:10px; margin-top: 20px; color: #555;">
+            Simulation based on concepts from "5G Software Defined Vehicular Networks". Blue lines=V2R, Green=V2V. Red
+            lines (if enabled)=specific path. Delay uses a probabilistic model based on SNR and path loss. Throughput is simplified. Vehicle Colors:
+            Yellow=Gateway, White=Connected, Red=Disconnected.
+        </p>
+    </div>
+
+    <script>
+        let vehicles = [];
+        let rsus = [];
+        let canvasWidth = 800;
+        let canvasHeight = 400;
+        let roadHeight = 35; // Increased height for two lanes
+        let laneOffset = roadHeight / 4;
+
+        // --- Simulation Parameters ---
+        let numVehicles = 50;
+        let vehicleSpeedFactor = 1.0; // Multiplier for base speed
+        let rsuRangeVisual = 150; // Range for *visual* circle and RSU association
+        let v2vRangeVisual = 70;  // Range for *visual* V2V links for BFS pathfinding
+        let totalBandwidthPerRSU = 1000; // Mbps
+        let bandwidthMode = 'average'; // 'average' or 'adaptive'
+        let showPaths = false;
+
+        // --- Probabilistic Delay Model Parameters ---
+        let P_TX_dBm = 20;      // Transmit Power (dBm)
+        let SNR_THRESHOLD_dB = 10; // Required SNR for successful reception (dB)
+        let PL_SIGMA_dB = 3;      // Standard deviation of shadow fading (dB)
+        let T_SLOT_MS = 0.5;      // Duration of one transmission time slot (ms)
+        let T_RETRAN_MS = 0.1;    // Fixed delay added for V2V retransmission/processing (ms)
+
+        // --- Constants for Delay Calculation ---
+        const N0_dBm_per_Hz = -174; // Thermal noise density (dBm/Hz)
+        const W_MHz = 20;         // System Bandwidth (MHz)
+        const NF_dB = 7;          // Noise Figure of receiver (dB)
+        const W_Hz = W_MHz * 1e6; // Bandwidth in Hz
+        // Calculate Noise Power P_Noise in dBm
+        const P_NOISE_dBm = N0_dBm_per_Hz + 10 * Math.log10(W_Hz) + NF_dB;
+        const PL_CONST = 69.6;    // Path Loss constant term (from formula)
+        const PL_EXP = 2.09;      // Path Loss exponent (from formula: 20.9 * log10(d) -> using 2.09 for base 10)
+        const MIN_PROB_SUCCESS = 1e-9; // Minimum probability considered viable for a hop
+
+        // --- Simplified Metrics Constants ---
+        const baseBwPerVehicle = 20; // Assumed average BW need for throughput calc (Mbps)
+        const maxBwDemandAdaptive = 50; // Max random BW demand in adaptive mode (Mbps)
+        const throughputEfficiency = 0.9; // Factor to relate BW to Throughput
+
+        // --- UI Elements ---
+        let numVehiclesSlider, speedSlider, rsuRangeSlider, v2vRangeSlider, bandwidthSlider;
+        let numVehiclesValueSpan, speedValueSpan, rsuRangeValueSpan, v2vRangeValueSpan, bandwidthValueSpan;
+        let bwModeButton, pathVizButton;
+        let ptxInput, snrThresholdInput, plSigmaInput, tSlotInput, tRetransInput;
+        let infoBox;
+        let avgDelayValueSpan, totalThroughputValueSpan;
+
+        // --- Colors ---
+        let roadColor;
+        let rsuColor;
+        let gatewayVehicleColor;
+        let connectedVehicleColor;
+        let unconnectedVehicleColor;
+        let v2rLinkColorActual;
+        let v2vLinkColorActual;
+        let pathHighlightColor;
+        let backgroundColor;
+        let delayTextColor;
+        let infTextColor;
+
+
+        // ==========================
+        // P5.js Setup Function
+        // ==========================
+        function setup() {
+            let canvas = createCanvas(canvasWidth, canvasHeight);
+            canvas.parent('canvas-container');
+
+            // Initialize Colors
+            roadColor = color(100);
+            rsuColor = color(0, 150, 200, 220); // Cyan-Blue RSU
+            gatewayVehicleColor = color(255, 255, 0); // Yellow
+            connectedVehicleColor = color(255, 255, 255); // White
+            unconnectedVehicleColor = color(200, 0, 0); // Red
+            v2rLinkColorActual = color(0, 0, 255, 180); // Blue
+            v2vLinkColorActual = color(0, 150, 0, 180); // Green
+            pathHighlightColor = color(255, 0, 0, 220); // Bright Red Highlight
+            backgroundColor = color(235); // Lighter gray background
+            delayTextColor = color(0); // Black text for delay
+            infTextColor = color(120); // Gray text for "Inf"
+
+
+            // --- Create Controls ---
+            numVehiclesSlider = select('#numVehiclesSlider');
+            speedSlider = select('#speedSlider');
+            rsuRangeSlider = select('#rsuRangeSlider');
+            v2vRangeSlider = select('#v2vRangeSlider');
+            bandwidthSlider = select('#bandwidthSlider');
+            bwModeButton = select('#bwModeButton');
+            pathVizButton = select('#pathVizButton');
+            ptxInput = select('#ptxInput');
+            snrThresholdInput = select('#snrThresholdInput');
+            plSigmaInput = select('#plSigmaInput');
+            tSlotInput = select('#tSlotInput');
+            tRetransInput = select('#tRetransInput');
+
+
+            numVehiclesValueSpan = select('#numVehiclesValue');
+            speedValueSpan = select('#speedValue');
+            rsuRangeValueSpan = select('#rsuRangeValue');
+            v2vRangeValueSpan = select('#v2vRangeValue');
+            bandwidthValueSpan = select('#bandwidthValue');
+            avgDelayValueSpan = select('#avgDelayValue');
+            totalThroughputValueSpan = select('#totalThroughputValue');
+
+            infoBox = select('#infoBox');
+
+            // --- Set Initial Values & Attach Listeners ---
+            numVehiclesSlider.input(() => {
+                numVehicles = numVehiclesSlider.value();
+                numVehiclesValueSpan.html(numVehicles);
+                initializeSimulation();
+            });
+            speedSlider.input(() => {
+                vehicleSpeedFactor = parseFloat(speedSlider.value());
+                speedValueSpan.html(vehicleSpeedFactor.toFixed(1));
+                // Update speed for existing vehicles (base speed is fixed, factor changes)
+                vehicles.forEach(v => v.updateSpeed());
+            });
+            rsuRangeSlider.input(() => {
+                rsuRangeVisual = rsuRangeSlider.value();
+                rsuRangeValueSpan.html(rsuRangeVisual);
+            });
+            v2vRangeSlider.input(() => {
+                v2vRangeVisual = v2vRangeSlider.value();
+                v2vRangeValueSpan.html(v2vRangeVisual);
+            });
+            bandwidthSlider.input(() => {
+                totalBandwidthPerRSU = bandwidthSlider.value();
+                bandwidthValueSpan.html(totalBandwidthPerRSU);
+            });
+            bwModeButton.mousePressed(() => {
+                if (bandwidthMode === 'average') {
+                    bandwidthMode = 'adaptive';
+                    bwModeButton.html('Mode: Adaptive');
+                } else {
+                    bandwidthMode = 'average';
+                    bwModeButton.html('Mode: Average');
+                }
+            });
+            pathVizButton.mousePressed(() => {
+                showPaths = !showPaths;
+                pathVizButton.html(`Show Paths: ${showPaths ? 'ON' : 'OFF'}`);
+            });
+
+            // Listeners for new delay parameters
+             ptxInput.input(() => { P_TX_dBm = parseFloat(ptxInput.value()); });
+             snrThresholdInput.input(() => { SNR_THRESHOLD_dB = parseFloat(snrThresholdInput.value()); });
+             plSigmaInput.input(() => { PL_SIGMA_dB = parseFloat(plSigmaInput.value()); });
+             tSlotInput.input(() => { T_SLOT_MS = parseFloat(tSlotInput.value()); });
+             tRetransInput.input(() => { T_RETRAN_MS = parseFloat(tRetransInput.value()); });
+
+
+            // --- Initialize Simulation Elements ---
+            initializeSimulation();
+        }
+
+        // ==========================
+        // Initialize/Reset Simulation
+        // ==========================
+        function initializeSimulation() {
+            vehicles = [];
+            rsus = [];
+            let rsuYSpacing = 50; // Space RSU away from road center
+
+            // Create RSUs (fixed positions near roads)
+            rsus.push(new RSU(1 * width / 4, height / 3 - rsuYSpacing, 0));
+            rsus.push(new RSU(3 * width / 4, height / 3 - rsuYSpacing, 1));
+            rsus.push(new RSU(1 * width / 4, 2 * height / 3 + rsuYSpacing, 2));
+            rsus.push(new RSU(3 * width / 4, 2 * height / 3 + rsuYSpacing, 3));
+
+
+            // Create Vehicles
+            let road1YCenter = height / 3;
+            let road2YCenter = 2 * height / 3;
+            for (let i = 0; i < numVehicles; i++) {
+                let roadCenterY = (random() < 0.5) ? road1YCenter : road2YCenter;
+                // Base speed is now somewhat fixed, scaled by the factor
+                 let baseSpeed = random(1, 3); // e.g., 1-3 pixels/frame base
+                vehicles.push(new Vehicle(random(width), roadCenterY, i, baseSpeed));
+            }
+        }
+
+        // ==========================
+        // P5.js Draw Function (Main Loop)
+        // ==========================
+        function draw() {
+            background(backgroundColor);
+
+            // 1. Draw Environment
+            drawEnvironment();
+
+            // 2. Update Vehicles
+            vehicles.forEach(v => v.update());
+
+            // 3. Reset State for Calculations
+            vehicles.forEach(v => v.resetState());
+            rsus.forEach(r => r.resetState());
+
+            // 4. Assign Vehicles to RSUs & Find Gateways (Based on VISUAL RSU Range)
+            assignVehiclesToRSUs();
+
+            // 5. Find Multihop Paths & Calculate Probabilistic Delay
+            findMultihopPathsAndCalculateDelay(); // Renamed for clarity
+
+            // 6. Calculate Metrics (Throughput uses allocated BW, Delay uses calculated probabilistic delay)
+            calculateAndDisplayMetrics();
+
+            // 7. Draw Links
+            drawLinks();
+
+            // 8. Draw RSUs (Including visual range circle)
+            rsus.forEach(r => r.draw());
+
+            // 9. Draw Vehicles (Includes drawing delay text)
+            vehicles.forEach(v => v.draw());
+
+            // 10. Handle Hover Info
+            handleHover();
+        }
+
+        // ==========================
+        // Drawing Functions
+        // ==========================
+        function drawEnvironment() {
+            // Draw Roads
+            noStroke();
+            fill(roadColor);
+            rect(0, height / 3 - roadHeight / 2, width, roadHeight); // Road 1
+            rect(0, 2 * height / 3 - roadHeight / 2, width, roadHeight); // Road 2
+
+            // Draw Dashed Center Lines
+            stroke(255, 255, 0, 150); // Yellow dashed line
+            strokeWeight(1.5);
+            drawingContext.setLineDash([10, 10]);
+            line(0, height / 3, width, height / 3);
+            line(0, 2 * height / 3, width, 2 * height / 3);
+            drawingContext.setLineDash([]); // Reset line dash
+        }
+
+        function drawLinks() {
+            strokeWeight(1.5);
+            vehicles.forEach(v => {
+                // Draw links only if the vehicle has a finite calculated delay (meaning a path exists and is viable)
+                if (v.calculatedDelay !== Infinity && v.associatedRSU !== null) {
+                     let rsu = rsus[v.associatedRSU];
+                     // If it's a gateway, draw the direct V2R link
+                     if (v.isGateway) {
+                         stroke(v2rLinkColorActual);
+                         line(v.x, v.y, rsu.x, rsu.y);
+                     }
+                     // If it has a multihop path, draw the V2V segments and the final V2R link
+                     else if (v.multihopPath && v.multihopPath.length > 0) {
+                         let currentVeh = v;
+                         for (let i = 0; i < v.multihopPath.length; i++) {
+                             let nextVehId = v.multihopPath[i];
+                             let nextVeh = vehicles.find(vh => vh.id === nextVehId);
+                             if (nextVeh) {
+                                 strokeWeight(showPaths ? 2.5 : 1.5); // Thicker if highlighting
+                                 stroke(showPaths ? pathHighlightColor : v2vLinkColorActual); // Red if highlighting, else Green
+                                 line(currentVeh.x, currentVeh.y, nextVeh.x, nextVeh.y);
+                                 currentVeh = nextVeh; // Move to the next vehicle in the path
+                             }
+                         }
+                         // Link the last V2V hop (which should be the gateway) to the RSU
+                         if (currentVeh && currentVeh.isGateway) {
+                             stroke(v2rLinkColorActual); // Blue for V2R
+                             strokeWeight(1.5); // Ensure normal weight for V2R
+                             line(currentVeh.x, currentVeh.y, rsu.x, rsu.y);
+                         }
+                     }
+                     // Handle the case of a non-gateway vehicle directly connected (conceptually) to the gateway
+                     else if (!v.isGateway && v.associatedRSU !== null) {
+                         let gateway = vehicles.find(gv => gv.id === rsu.gatewayVehicleId);
+                         if (gateway) {
+                            // Draw a V2V link to the gateway (if path viz is off)
+                            // If path viz is on, this single hop isn't explicitly shown as red unless part of a longer path
+                            if (!showPaths) {
+                                stroke(v2vLinkColorActual); // Green V2V link
+                                strokeWeight(1.5);
+                                line(v.x, v.y, gateway.x, gateway.y);
+                            }
+                             // Draw the gateway's V2R link (might be drawn multiple times, but ok)
+                             stroke(v2rLinkColorActual); // Blue V2R link
+                             strokeWeight(1.5);
+                             line(gateway.x, gateway.y, rsu.x, rsu.y);
+                         }
+                     }
+                }
+            });
+            strokeWeight(1); // Reset stroke weight
+        }
+
+
+        // ========================================
+        // Simulation Logic & Delay Calculation
+        // ========================================
+
+        // --- Helper: Error Function (erf) approximation ---
+        // Using Abramowitz and Stegun approximation 7.1.26
+        function erf(x) {
+            // constants
+            const a1 = 0.254829592;
+            const a2 = -0.284496736;
+            const a3 = 1.421413741;
+            const a4 = -1.453152027;
+            const a5 = 1.061405429;
+            const p = 0.3275911;
+
+            // Save the sign of x
+            let sign = 1;
+            if (x < 0) {
+                sign = -1;
+            }
+            x = Math.abs(x);
+
+            // A&S formula
+            const t = 1.0 / (1.0 + p * x);
+            const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+
+            return sign * y;
+        }
+
+        // --- Helper: Normal Cumulative Distribution Function (CDF) ---
+        function normCDF(x, mean, stddev) {
+            if (stddev <= 0) return x < mean ? 0 : 1; // Handle zero or negative stddev
+             // erfc(x) = 1 - erf(x)
+             // CDF(x) = 0.5 * erfc(-(x - mean) / (stddev * sqrt(2)))
+             //        = 0.5 * (1 - erf(-(x-mean)/(stddev * sqrt(2))))
+            //        = 0.5 * (1 + erf((x-mean)/(stddev * sqrt(2)))) // Since erf(-z) = -erf(z)
+             return 0.5 * (1 + erf((x - mean) / (stddev * Math.sqrt(2))));
+        }
+
+
+        // --- Helper: Calculate Hop Success Probability (P_hop) ---
+        function calculatePhop(distance_m) {
+            if (distance_m <= 0) return 1.0; // Assume perfect success at zero distance
+
+            // 1. Calculate Mean Path Loss (PL_mean) in dB
+            const pl_mean_dB = PL_CONST + PL_EXP * 10 * Math.log10(distance_m); // Use 10*log10
+
+            // 2. Calculate Max Tolerable Path Loss (PL_max) in dB
+            // PL_max = P_tx - P_noise - SNR_threshold
+            const pl_max_dB = P_TX_dBm - P_NOISE_dBm - SNR_THRESHOLD_dB;
+
+            // 3. Calculate Probability using Normal CDF
+            // P_hop = P(PL_actual <= PL_max) where PL_actual ~ Normal(pl_mean_dB, PL_SIGMA_dB^2)
+            // This is CDF_Normal(pl_max_dB, mean=pl_mean_dB, stddev=PL_SIGMA_dB)
+            const probability = normCDF(pl_max_dB, pl_mean_dB, PL_SIGMA_dB);
+
+            return probability;
+        }
+
+
+        function assignVehiclesToRSUs() {
+             // Assign based on VISUAL range for gateway selection and initial association
+            vehicles.forEach(v => {
+                let closestDist = Infinity;
+                let closestRSUIndex = null;
+
+                rsus.forEach((rsu, index) => {
+                    let d = dist(v.x, v.y, rsu.x, rsu.y);
+                    if (d < closestDist) {
+                        closestDist = d;
+                        closestRSUIndex = index;
+                    }
+                });
+
+                v.associatedRSU = closestRSUIndex;
+
+                // Check if within direct VISUAL RSU range
+                if (closestRSUIndex !== null && closestDist <= rsuRangeVisual) {
+                    v.isInDirectRange = true; // Based on visual range for potential gateway status
+                } else {
+                    v.isInDirectRange = false;
+                }
+            });
+
+            // Determine gateway for each RSU (closest vehicle *within visual range*)
+            rsus.forEach((rsu, index) => {
+                let potentialGateways = vehicles.filter(v => v.associatedRSU === index && v.isInDirectRange);
+                let closestGatewayDist = Infinity;
+                let gatewayVehicleId = null;
+
+                potentialGateways.forEach(v => {
+                    let d = dist(v.x, v.y, rsu.x, rsu.y);
+                    if (d < closestGatewayDist) {
+                        closestGatewayDist = d;
+                        gatewayVehicleId = v.id;
+                    }
+                });
+
+                rsu.gatewayVehicleId = gatewayVehicleId;
+
+                // Assign gateway status and need for multihop
+                vehicles.forEach(v => {
+                    if (v.associatedRSU === index) {
+                        v.isGateway = (v.id === gatewayVehicleId);
+                        // Needs multihop if associated, not gateway, and not in direct *visual* range
+                        v.needsMultihop = (!v.isGateway && !v.isInDirectRange && gatewayVehicleId !== null);
+                         if (gatewayVehicleId === null) { // If no gateway for this RSU
+                             v.calculatedDelay = Infinity; // Cannot connect
+                         }
+                    }
+                });
+            });
+        }
+
+        function findMultihopPathsAndCalculateDelay() {
+            vehicles.forEach(v => {
+                 // Skip if already marked disconnected (e.g., no RSU gateway)
+                 if (v.calculatedDelay === Infinity) {
+                    return;
+                 }
+
+                let totalDelay = 0;
+                let pathPossible = true;
+                let rsu = (v.associatedRSU !== null) ? rsus[v.associatedRSU] : null;
+                let gateway = (rsu && rsu.gatewayVehicleId !== null) ? vehicles.find(gv => gv.id === rsu.gatewayVehicleId) : null;
+
+                if (!rsu || !gateway) {
+                    v.calculatedDelay = Infinity; // Cannot connect if no RSU or gateway exists
+                    return;
+                }
+
+                // --- Case 1: Vehicle is the Gateway ---
+                if (v.isGateway) {
+                    let dist_g2r = dist(v.x, v.y, rsu.x, rsu.y);
+                    let p_hop_v2i = calculatePhop(dist_g2r);
+
+                    if (p_hop_v2i < MIN_PROB_SUCCESS) {
+                        pathPossible = false;
+                    } else {
+                        let t_hop_v2i = T_SLOT_MS / p_hop_v2i;
+                        totalDelay = t_hop_v2i; // Only V2I hop delay
+                    }
+                }
+                // --- Case 2: Vehicle Needs Multihop (determined by BFS using visual V2V range) ---
+                else if (v.needsMultihop) {
+                    // Find vehicles belonging to the same fog cell
+                    let fogCellVehicles = vehicles.filter(ov => ov.associatedRSU === v.associatedRSU);
+                    v.multihopPath = bfs(v, gateway, fogCellVehicles, v2vRangeVisual); // BFS uses visual range
+
+                    if (v.multihopPath && v.multihopPath.length > 0) {
+                        let currentHopNode = v;
+                        // Calculate V2V delays along the BFS path
+                        for (let i = 0; i < v.multihopPath.length; i++) {
+                            let nextHopId = v.multihopPath[i];
+                            let nextHopNode = vehicles.find(vh => vh.id === nextHopId);
+                            if (!nextHopNode) { pathPossible = false; break; } // Should not happen
+
+                            let dist_v2v = dist(currentHopNode.x, currentHopNode.y, nextHopNode.x, nextHopNode.y);
+                            let p_hop_v2v = calculatePhop(dist_v2v);
+
+                            if (p_hop_v2v < MIN_PROB_SUCCESS) {
+                                pathPossible = false; break;
+                            } else {
+                                let t_hop_v2v = T_SLOT_MS / p_hop_v2v;
+                                totalDelay += (t_hop_v2v + T_RETRAN_MS); // Add V2V hop time + retransmission delay
+                            }
+                            currentHopNode = nextHopNode; // Move to the next node
+                        }
+
+                        // If V2V path was possible, add the final V2I hop delay (from gateway to RSU)
+                        if (pathPossible && currentHopNode.id === gateway.id) { // Ensure last node is the gateway
+                            let dist_g2r = dist(gateway.x, gateway.y, rsu.x, rsu.y);
+                            let p_hop_v2i = calculatePhop(dist_g2r);
+
+                            if (p_hop_v2i < MIN_PROB_SUCCESS) {
+                                pathPossible = false;
+                            } else {
+                                let t_hop_v2i = T_SLOT_MS / p_hop_v2i;
+                                totalDelay += t_hop_v2i; // Add final V2I hop delay (no retrans delay)
+                            }
+                        } else {
+                            pathPossible = false; // V2V path failed or didn't end at gateway
+                        }
+                    } else {
+                        pathPossible = false; // BFS failed to find a path
+                    }
+                }
+                // --- Case 3: Vehicle is Associated, in RSU Visual Range, but NOT Gateway ---
+                // Model this as a direct (probabilistic) V2V hop to the gateway + gateway's V2I hop
+                else if (!v.isGateway && v.associatedRSU !== null) {
+                     // Calculate V2V hop from this vehicle to the gateway
+                    let dist_v2g = dist(v.x, v.y, gateway.x, gateway.y);
+                    let p_hop_v2g = calculatePhop(dist_v2g);
+
+                    if (p_hop_v2g < MIN_PROB_SUCCESS) {
+                        pathPossible = false;
+                    } else {
+                         let t_hop_v2g = T_SLOT_MS / p_hop_v2g;
+                         totalDelay += (t_hop_v2g + T_RETRAN_MS); // V2V hop to gateway + retrans delay
+
+                         // Add Gateway's V2I hop delay
+                         let dist_g2r = dist(gateway.x, gateway.y, rsu.x, rsu.y);
+                         let p_hop_v2i = calculatePhop(dist_g2r);
+
+                         if (p_hop_v2i < MIN_PROB_SUCCESS) {
+                             pathPossible = false;
+                         } else {
+                             let t_hop_v2i = T_SLOT_MS / p_hop_v2i;
+                             totalDelay += t_hop_v2i; // Add V2I hop delay
+                         }
+                    }
+                }
+                 else {
+                      // Should be covered by initial checks, but default to impossible path
+                      pathPossible = false;
+                 }
+
+
+                // Set final calculated delay
+                v.calculatedDelay = pathPossible ? totalDelay : Infinity;
+            });
+        }
+
+
+        // Breadth-First Search (uses VISUAL V2V range)
+        function bfs(startNode, targetNode, nodes, range) {
+            if (!startNode || !targetNode) return null;
+
+            let queue = [{ node: startNode, path: [] }];
+            let visited = new Set([startNode.id]);
+
+            while (queue.length > 0) {
+                let current = queue.shift();
+                let currentNode = current.node;
+                let currentPath = current.path;
+
+                // Find neighbors within VISUAL V2V range
+                for (let neighbor of nodes) {
+                    if (neighbor.id !== currentNode.id && !visited.has(neighbor.id)) {
+                        let d = dist(currentNode.x, currentNode.y, neighbor.x, neighbor.y);
+                        if (d <= range) { // Check against visual range for pathfinding
+                            let newPath = [...currentPath, neighbor.id];
+
+                            if (neighbor.id === targetNode.id) {
+                                return newPath; // Found the target (gateway)
+                            }
+
+                            visited.add(neighbor.id);
+                            queue.push({ node: neighbor, path: newPath });
+                        }
+                    }
+                }
+            }
+            return null; // No path found
+        }
+
+        function calculateAndDisplayMetrics() {
+            let totalDelaySum = 0;
+            let connectedVehicleCount = 0;
+            let totalSystemThroughput = 0;
+
+            // Throughput calculation (remains largely the same, based on association)
+            rsus.forEach(rsu => {
+                // Count vehicles *associated* with this RSU for BW allocation.
+                // Note: BW allocation might happen even if probabilistic delay is Infinite later.
+                // This represents the SDN *attempting* to allocate based on association.
+                 let associatedVehicles = vehicles.filter(v => v.associatedRSU === rsu.id);
+                 // However, only vehicles with finite delay *contribute* to measured throughput.
+                 let connectedVehiclesInCell = associatedVehicles.filter(v => v.calculatedDelay !== Infinity);
+
+                let numAssociated = associatedVehicles.length;
+                let rsuThroughput = 0;
+
+                if (numAssociated > 0) {
+                    let availableBw = totalBandwidthPerRSU;
+
+                    if (bandwidthMode === 'average') {
+                        let bwPerVehicle = availableBw / numAssociated;
+                         associatedVehicles.forEach(v => {
+                            v.allocatedBandwidth = bwPerVehicle; // Allocate BW to all associated
+                         });
+                         // Sum throughput only for those actually connected
+                         connectedVehiclesInCell.forEach(v => {
+                            rsuThroughput += min(v.allocatedBandwidth, baseBwPerVehicle) * throughputEfficiency;
+                         });
+
+                    } else { // Adaptive mode simulation
+                        associatedVehicles.forEach(v => v.bwDemand = random(5, maxBwDemandAdaptive));
+                        associatedVehicles.sort((a, b) => b.bwDemand - a.bwDemand); // Sort all associated
+
+                        let remainingBw = availableBw;
+                        associatedVehicles.forEach(v => {
+                            let allocated = min(v.bwDemand, remainingBw);
+                            v.allocatedBandwidth = allocated; // Allocate BW
+                            remainingBw -= allocated;
+                            // Add to throughput only if connected
+                            if (v.calculatedDelay !== Infinity) {
+                                 rsuThroughput += allocated * throughputEfficiency;
+                            }
+                        });
+                         // Ensure vehicles not getting BW have allocation set to 0 or null
+                         associatedVehicles.forEach(v => {
+                             if (v.allocatedBandwidth === undefined) v.allocatedBandwidth = 0;
+                         });
+                    }
+                } else {
+                     // Ensure allocatedBandwidth is null if no vehicles associated
+                    vehicles.forEach(v => {
+                        if (v.associatedRSU === rsu.id) v.allocatedBandwidth = null;
+                    })
+                }
+                totalSystemThroughput += rsuThroughput;
+            });
+
+
+            // Average Delay Calculation (uses probabilistic delay)
+            vehicles.forEach(v => {
+                if (v.calculatedDelay !== Infinity) {
+                    totalDelaySum += v.calculatedDelay;
+                    connectedVehicleCount++;
+                } else {
+                    // Reset allocated bandwidth if delay is infinite (can't actually use it)
+                    // v.allocatedBandwidth = null; // Optional: Clear BW if connection fails? Let's keep allocated BW visible for now.
+                }
+            });
+
+            let avgDelay = (connectedVehicleCount > 0) ? (totalDelaySum / connectedVehicleCount) : 0;
+
+            // Display Metrics
+            avgDelayValueSpan.html(avgDelay.toFixed(2));
+            totalThroughputValueSpan.html(totalSystemThroughput.toFixed(2));
+        }
+
+        // ==========================
+        // User Interaction
+        // ==========================
+        function handleHover() {
+            let hoverText = "Hover over a vehicle to see details.";
+            let vehicleHovered = false;
+            for (let v of vehicles) {
+                if (abs(mouseX - v.x) < v.width / 2 + 3 && abs(mouseY - v.y) < v.height / 2 + 3) {
+                    hoverText = `<b>Vehicle ID: ${v.id}</b><br>`;
+                    if (v.associatedRSU !== null) {
+                        let rsu = rsus[v.associatedRSU];
+                        hoverText += `Assoc. RSU: ${v.associatedRSU}<br>`;
+
+                        let status = "";
+                        let pathInfo = "";
+                        let hopInfo = "";
+
+                        if (v.isGateway) {
+                            status = `<span style='color:orange;'>Gateway</span>`;
+                             let dist_g2r = dist(v.x, v.y, rsu.x, rsu.y);
+                             let p_hop_v2i = calculatePhop(dist_g2r);
+                             pathInfo = `Direct V2I (P_hop: ${p_hop_v2i.toFixed(3)})`;
+                             hopInfo = "1 Hop (V2I)";
+                        } else if (v.multihopPath && v.multihopPath.length > 0 && v.calculatedDelay !== Infinity) {
+                             status = `<span style='color:green;'>Multihop V2V</span>`;
+                             pathInfo = `Path: V${v.id} &rarr; ${v.multihopPath.map(id => `V${id}`).join(' &rarr; ')} &rarr; RSU${v.associatedRSU}`;
+                             hopInfo = `Hops: ${v.multihopPath.length} (V2V) + 1 (V2I)`;
+                        } else if (v.calculatedDelay !== Infinity) {
+                            // Non-gateway, associated, connected (likely direct V2V to gateway)
+                            status = `<span style='color:black;'>Connected</span>`;
+                             let gateway = vehicles.find(gv => gv.id === rsu.gatewayVehicleId);
+                             if (gateway) {
+                                 let dist_v2g = dist(v.x, v.y, gateway.x, gateway.y);
+                                 let p_hop_v2g = calculatePhop(dist_v2g);
+                                 let dist_g2r = dist(gateway.x, gateway.y, rsu.x, rsu.y);
+                                 let p_hop_g2r = calculatePhop(dist_g2r);
+                                 pathInfo = `Via Gateway V${gateway.id} (P_v2g: ${p_hop_v2g.toFixed(3)}, P_g2r: ${p_hop_g2r.toFixed(3)})`;
+                                 hopInfo = "2 Hops (V2V+V2I)";
+                             } else {
+                                 pathInfo = "Path info unavailable"; // Should not happen if connected
+                             }
+                        } else if (v.needsMultihop && !(v.multihopPath && v.multihopPath.length > 0)) {
+                            status = `<span style='color:grey;'>Needs Multihop (No BFS Path)</span>`;
+                        } else if (v.isInDirectRange) {
+                            status = `<span style='color:darkred;'>In RSU Range (Link Failed/Not Gateway)</span>`;
+                        }
+                        else {
+                             status = `<span style='color:red;'>Disconnected</span>`;
+                        }
+
+
+                        hoverText += `Status: ${status}<br>`;
+                        if (pathInfo) hoverText += `${pathInfo}<br>`;
+                         if (hopInfo) hoverText += `${hopInfo}<br>`;
+
+                        if (v.calculatedDelay !== Infinity) {
+                            hoverText += `Est. Delay: ${v.calculatedDelay.toFixed(2)} ms<br>`;
+                        } else {
+                            hoverText += `Est. Delay: <span style='color:red;'>Inf</span><br>`;
+                        }
+                        if (v.allocatedBandwidth !== null && v.allocatedBandwidth > 0) {
+                            hoverText += `Alloc. BW: ${v.allocatedBandwidth.toFixed(1)} Mbps<br>`;
+                        } else if (v.associatedRSU !== null) {
+                            hoverText += `Alloc. BW: 0.0 Mbps<br>`
+                        }
+
+                    } else {
+                        hoverText += `Status: <span style='color:red;'>Unassociated</span><br>`;
+                        hoverText += `Est. Delay: <span style='color:red;'>Inf</span><br>`;
+                    }
+                    vehicleHovered = true;
+                    break;
+                }
+            }
+            infoBox.html(hoverText);
+        }
+
+
+        // ==========================
+        // Classes (RSU and Vehicle)
+        // ==========================
+        class RSU {
+            constructor(x, y, id) {
+                this.x = x;
+                this.y = y;
+                this.id = id;
+                this.size = 25;
+                this.gatewayVehicleId = null;
+            }
+
+            resetState() {
+                this.gatewayVehicleId = null;
+            }
+
+            draw() {
+                // Draw RSU VISUAL Range Circle
+                noFill();
+                stroke(0, 0, 200, 40);
+                strokeWeight(1);
+                ellipse(this.x, this.y, rsuRangeVisual * 2, rsuRangeVisual * 2); // Use visual range
+
+                // Draw RSU Base
+                stroke(50);
+                strokeWeight(3);
+                line(this.x, this.y + this.size * 0.4, this.x, this.y + this.size * 1.5);
+
+                // Draw RSU Box
+                fill(rsuColor);
+                stroke(40);
+                strokeWeight(1);
+                rectMode(CENTER);
+                rect(this.x, this.y, this.size * 1.2, this.size * 0.8, 3);
+
+                // Draw Antenna
+                stroke(50);
+                strokeWeight(2);
+                line(this.x, this.y - this.size * 0.4, this.x, this.y - this.size * 0.8);
+                fill(50);
+                ellipse(this.x, this.y - this.size * 0.8, 6, 6);
+                rectMode(CORNER);
+
+                // Label
+                fill(0);
+                noStroke();
+                textAlign(CENTER, CENTER);
+                textSize(11);
+                text(`RSU ${this.id}`, this.x, this.y + this.size * 2.0);
+            }
+        }
+
+        class Vehicle {
+            constructor(x, roadCenterY, id, baseSpeed) {
+                this.x = x;
+                this.roadCenterY = roadCenterY;
+                this.id = id;
+                this.width = 15;
+                this.height = 8;
+                this.baseSpeed = baseSpeed; // Base speed (pixels/frame)
+                this.direction = (random() < 0.5) ? 1 : -1;
+
+                this.updateSpeed(); // Set initial speed based on factor
+
+                this.laneOffsetY = (this.direction === 1) ? laneOffset : -laneOffset;
+                this.y = this.roadCenterY + this.laneOffsetY;
+
+                this.resetState();
+            }
+
+             updateSpeed() {
+                 // Speed is base speed * factor + some variability
+                 this.speed = this.baseSpeed * vehicleSpeedFactor * random(0.8, 1.2);
+             }
+
+
+            resetState() {
+                this.associatedRSU = null;
+                this.isGateway = false;
+                this.isInDirectRange = false; // Based on visual RSU range
+                this.needsMultihop = false;   // Based on visual RSU/V2V range & gateway status
+                this.multihopPath = null;     // BFS path result
+                this.calculatedDelay = undefined; // Will be set to Infinity or a value later
+                this.allocatedBandwidth = null;
+                this.bwDemand = 0;
+                // Don't reset speed variability here, do it in updateSpeed or constructor
+            }
+
+            update() {
+                this.x += this.speed * this.direction;
+
+                if (this.direction === 1 && this.x > width + this.width / 2) {
+                    this.x = -this.width / 2;
+                } else if (this.direction === -1 && this.x < -this.width / 2) {
+                    this.x = width + this.width / 2;
+                }
+                this.y = this.roadCenterY + this.laneOffsetY;
+                 // Potentially update speed slightly each frame if desired
+                 // this.speed = this.baseSpeed * vehicleSpeedFactor * random(0.95, 1.05);
+            }
+
+            draw() {
+                let bodyColor;
+                if (this.isGateway) {
+                    bodyColor = gatewayVehicleColor;
+                } else if (this.calculatedDelay !== Infinity) { // Connected if delay is finite
+                    bodyColor = connectedVehicleColor;
+                } else { // Disconnected if delay is infinite or undefined
+                    bodyColor = unconnectedVehicleColor;
+                }
+
+                // --- Draw Car Shape ---
+                push();
+                translate(this.x, this.y);
+                noStroke();
+                rectMode(CENTER);
+                fill(bodyColor);
+                stroke(30);
+                strokeWeight(0.5);
+                rect(0, 0, this.width, this.height, 2);
+                fill(50, 50, 100, 150);
+                noStroke();
+                if (this.direction === 1) {
+                    rect(this.width * 0.25, 0, this.width * 0.3, this.height * 0.8, 1);
+                } else {
+                    rect(-this.width * 0.25, 0, this.width * 0.3, this.height * 0.8, 1);
+                }
+                rectMode(CORNER);
+                pop();
+
+
+                // --- Draw Delay Text Above Car ---
+                textAlign(CENTER, BOTTOM);
+                textSize(9);
+                if (this.calculatedDelay !== undefined) { // Only draw if delay has been calculated
+                     if (this.calculatedDelay !== Infinity) {
+                        fill(delayTextColor);
+                        text(this.calculatedDelay.toFixed(1) + 'ms', this.x, this.y - this.height * 0.7);
+                    } else {
+                        // Show "Inf" only if it's associated but connection failed, or unassociated
+                         fill(infTextColor);
+                         text('Inf', this.x, this.y - this.height * 0.7);
+                    }
+                }
+                // Don't draw text if calculation hasn't happened yet (briefly at start)
+            }
+        }
+
+    </script>
+</body>
+
+</html>

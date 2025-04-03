@@ -944,30 +944,53 @@
                 let connectedVehiclesInCell = associatedVehicles.filter(v => v.calculatedDelay !== Infinity);
 
                 // Clear previous allocations for this RSU's vehicles
-                associatedVehicles.forEach(v => v.allocatedBandwidth = 0);
+                associatedVehicles.forEach(v => v.allocatedBandwidth = 0); // Reset allocation
 
-                if (numAssociated > 0) {
+                if (connectedVehiclesInCell.length > 0) { // Only allocate if there are connected vehicles
                     let availableBw = currentBwPerRsu;
+                    let remainingBw = availableBw;
+
                     if (currentBwMode === 'average') {
-                        let bwPerVehicle = availableBw / numAssociated;
-                        associatedVehicles.forEach(v => v.allocatedBandwidth = bwPerVehicle);
+                        // Simple average allocation among *connected* vehicles
+                        let bwPerConnectedVehicle = availableBw / connectedVehiclesInCell.length;
                         connectedVehiclesInCell.forEach(v => {
-                            // Use a simplified throughput model (e.g., min of allocation and base need)
+                            v.allocatedBandwidth = bwPerConnectedVehicle;
+                            // Throughput based on allocated BW, capped by base need (optional refinement)
                             rsuThroughput += min(v.allocatedBandwidth, baseBwPerVehicle) * throughputEfficiency;
                         });
-                    } else { // Adaptive mode simulation
-                        // Assign demand ONLY if needed for this calculation step (or ensure it's reset)
-                        associatedVehicles.forEach(v => v.bwDemand = random(5, baseBwPerVehicle * 2.5)); // Match paper's U(0, 2B_ave)? B_ave=baseBwPerVehicle? Let's use *2.5
-                        associatedVehicles.sort((a, b) => b.bwDemand - a.bwDemand);
+                    } else { // Adaptive mode with QoS (Delay & Fairness)
+                        // 1. Assign random demand (as before, could be replaced by actual needs later)
+                        connectedVehiclesInCell.forEach(v => {
+                            v.bwDemand = random(5, baseBwPerVehicle * 2.5);
+                            // TODO: Add Service Type property to Vehicle class if needed
+                            // v.serviceType = ... // e.g., 'safety', 'infotainment'
+                        });
 
-                        let remainingBw = availableBw;
-                        associatedVehicles.forEach(v => {
+                        // 2. Calculate Priority Score (Higher demand / Lower Delay = Higher Priority)
+                        //    Add a small epsilon to delay to prevent division by zero/infinity issues.
+                        const delayEpsilon = 0.1;
+                        connectedVehiclesInCell.forEach(v => {
+                            // TODO: Incorporate Service Type into priority if available
+                            // let servicePriorityFactor = (v.serviceType === 'safety') ? 10 : 1; // Example
+                            v.priorityScore = v.bwDemand / (v.calculatedDelay + delayEpsilon);
+                            // v.priorityScore = (v.bwDemand * servicePriorityFactor) / (v.calculatedDelay + delayEpsilon); // With service type
+                        });
+
+                        // 3. Sort vehicles by priority score (descending)
+                        connectedVehiclesInCell.sort((a, b) => b.priorityScore - a.priorityScore);
+
+                        // 4. Allocate bandwidth iteratively based on priority (Proportional Fair-like)
+                        connectedVehiclesInCell.forEach(v => {
+                            if (remainingBw <= 0) {
+                                v.allocatedBandwidth = 0;
+                                return; // No more bandwidth to allocate
+                            }
+                            // Allocate up to the demand, but no more than remaining BW
                             let allocated = min(v.bwDemand, remainingBw);
                             v.allocatedBandwidth = allocated;
                             remainingBw -= allocated;
-                            if (v.calculatedDelay !== Infinity) {
-                                rsuThroughput += allocated * throughputEfficiency; // Throughput is based on actual allocated BW
-                            }
+                            // Calculate throughput based on actual allocated bandwidth
+                            rsuThroughput += allocated * throughputEfficiency;
                         });
                     }
                 }

@@ -914,20 +914,54 @@
 
         // SDN Controller Object (need to be more complex logic)
         const sdnController = {
-            // Selects the gateway based on the best V2I link quality (Phop)
+            // Selects the gateway based on a combined score: V2I link quality (Phop), speed (lower is better), and potential dependents.
             selectGateway: function(rsu, potentialGateways) {
                 let bestGatewayId = null;
-                let highestPhop = -1;
+                let bestScore = -Infinity;
 
-                potentialGateways.forEach(v => {
-                    let d = dist(v.x, v.y, rsu.x, rsu.y);
-                    let phop = calculatePhop(d); // Calculate link quality
-                    if (phop > highestPhop) {
-                        highestPhop = phop;
-                        bestGatewayId = v.id;
+                // Get all vehicles associated with this RSU to count dependents later
+                // Note: This assumes 'vehicles' is accessible in this scope. If not, it needs to be passed.
+                const associatedVehicles = vehicles.filter(v => v.associatedRSU === rsu.id);
+
+                // --- Scoring Weights (Adjustable) ---
+                const weightPhop = 0.6;
+                const weightSpeed = 0.2; // Lower speed is better
+                const weightDependents = 0.2; // More dependents is better
+                // ------------------------------------
+
+                potentialGateways.forEach(pg => {
+                    // 1. Calculate V2I Link Quality (Phop)
+                    let d_v2i = dist(pg.x, pg.y, rsu.x, rsu.y);
+                    let phop = calculatePhop(d_v2i);
+
+                    // 2. Get Speed Score (Inverse relationship: lower speed = higher score)
+                    // Add 1 to avoid division by zero and scale sensitivity near zero speed.
+                    let speedScore = 1.0 / (1.0 + pg.speed);
+
+                    // 3. Calculate Potential Dependents Count
+                    let dependentCount = 0;
+                    associatedVehicles.forEach(v => {
+                        // Count vehicles associated with this RSU, that are NOT the potential gateway itself,
+                        // AND are NOT in direct range (meaning they would likely need multi-hop)
+                        if (v.id !== pg.id && !v.isInDirectRange) {
+                            dependentCount++;
+                        }
+                    });
+
+                    // 4. Calculate Combined Score
+                    let score = (weightPhop * phop) +
+                                (weightSpeed * speedScore) +
+                                (weightDependents * dependentCount);
+
+                    // console.log(`GW Candidate ${pg.id}: Phop=${phop.toFixed(3)}, Speed=${pg.speed.toFixed(2)}, Dependents=${dependentCount}, Score=${score.toFixed(3)}`);
+
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestGatewayId = pg.id;
                     }
                 });
-                // console.log(`Controller selected GW ${bestGatewayId} for RSU ${rsu.id} (Phop: ${highestPhop.toFixed(3)})`);
+
+                // console.log(`Controller selected GW ${bestGatewayId} for RSU ${rsu.id} (Score: ${bestScore.toFixed(3)})`);
                 return bestGatewayId;
             },
 

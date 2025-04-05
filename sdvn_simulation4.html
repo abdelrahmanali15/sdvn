@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>5G SDVN Simulation - Probabilistic Delay & Plots</title>
@@ -9,50 +10,65 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.dom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Added Chart.js -->
     <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #50bfa0;
+            --background-color: #f9f9f9;
+            --text-color: #333333;
+            --header-gradient: linear-gradient(90deg, #6fb1fc, #a1c4fd);
+            --button-gradient: linear-gradient(90deg, #6fb1fc, #4a90e2);
+        }
+
         body {
             padding: 0;
-            margin: 20px;
-            /* Add some margin */
-            font-family: sans-serif;
+            margin: 0;
+            font-family: 'Open Sans', sans-serif;
             display: flex;
-            /* Flex direction column for vertical layout */
             flex-direction: column;
             align-items: center;
-            /* Center items horizontally */
-            background-color: #f0f0f0;
+            background-color: var(--background-color);
             min-width: 900px;
-            /* Ensure enough width for layout */
+        }
+
+        header {
+            width: 100%;
+            padding: 15px 0;
+            background: var(--header-gradient);
+            color: #fff;
+            font-size: 20px;
+            font-weight: 600;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
         }
 
         #simulation-area {
             display: flex;
             flex-direction: row;
-            /* Side-by-side for sim and controls */
             justify-content: center;
             align-items: flex-start;
             width: 100%;
             max-width: 1200px;
-            /* Limit max width */
-            margin-bottom: 30px;
-            /* Space below simulation */
+            margin: 30px 0;
         }
-
 
         #canvas-container {
             margin-right: 20px;
             border: 1px solid #ccc;
-            background-color: #ffffff;
-            /* White canvas background */
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
         }
 
         #controls {
-            padding: 15px;
-            background-color: #e9e9e9;
-            border-radius: 5px;
-            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             width: 270px;
-            /* Slightly wider for new params */
-            /* Max height and scroll if needed */
             max-height: 700px;
             overflow-y: auto;
         }
@@ -60,39 +76,51 @@
         #controls label,
         #controls p {
             display: block;
-            margin-top: 10px;
-            font-size: 12px;
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--text-color);
         }
 
         #controls button {
-            margin-top: 10px;
-            padding: 5px 10px;
-            font-size: 12px;
+            margin-top: 12px;
+            padding: 8px 12px;
+            font-size: 13px;
             cursor: pointer;
             display: block;
-            /* Make buttons block level */
-            width: calc(100% - 20px);
-            /* Adjust width */
-            margin-left: 10px;
-            margin-right: 10px;
+            width: calc(100% - 24px);
+            margin-left: 12px;
+            margin-right: 12px;
             box-sizing: border-box;
+            border: none;
+            border-radius: 5px;
+            background: var(--button-gradient);
+            color: #fff;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        #controls button:hover:not(:disabled) {
+            filter: brightness(1.1);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
         }
 
         #controls button:disabled {
             cursor: not-allowed;
             background-color: #ccc;
+            color: #666;
         }
-
 
         #controls input[type="range"] {
             width: 100%;
         }
 
         #controls input[type="number"] {
-            /* Style for number inputs */
             width: 60px;
-            font-size: 11px;
+            font-size: 12px;
             margin-left: 5px;
+            padding: 2px 4px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
         }
 
         #infoBox {
@@ -100,39 +128,39 @@
             padding: 10px;
             background-color: #fff;
             border: 1px solid #ddd;
-            border-radius: 3px;
-            font-size: 11px;
+            border-radius: 5px;
+            font-size: 12px;
             min-height: 50px;
             line-height: 1.4;
+            color: var(--text-color);
         }
 
         #metricsBox {
             margin-top: 15px;
             padding: 10px;
-            background-color: #dff0d8;
-            /* Light green */
+            background-color: #e6f4ea;
             border: 1px solid #c8e5bc;
-            border-radius: 3px;
+            border-radius: 5px;
             font-size: 12px;
+            color: var(--text-color);
         }
 
         .metric-value {
             font-weight: bold;
             color: #3c763d;
-            /* Darker green */
         }
 
         .param-group {
-            margin-top: 12px;
-            padding-top: 8px;
+            margin-top: 15px;
+            padding-top: 10px;
             border-top: 1px solid #ccc;
         }
 
         .param-group p {
-            font-weight: bold;
+            font-weight: 600;
             margin-bottom: 5px;
             margin-top: 0;
-            font-size: 13px;
+            font-size: 14px;
         }
 
         h3 {
@@ -141,34 +169,31 @@
             border-bottom: 1px solid #ccc;
             padding-bottom: 5px;
             text-align: center;
+            color: var(--text-color);
         }
 
-        /* Styles for Graphs */
+        /* Graphs */
         #graphs-container {
             display: flex;
             flex-direction: row;
-            /* Side by side */
             justify-content: space-around;
-            /* Space out graphs */
             width: 100%;
             max-width: 1150px;
-            /* Adjust width as needed */
             background-color: #fff;
             padding: 20px;
-            border-radius: 5px;
-            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
-            margin-top: 20px;
-            /* Space above graphs */
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin: 20px 0;
             box-sizing: border-box;
         }
 
         .graph-wrapper {
             width: 48%;
-            /* Adjust width for two graphs with spacing */
             background-color: #f9f9f9;
             padding: 15px;
-            border-radius: 4px;
+            border-radius: 8px;
             border: 1px solid #ddd;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
             box-sizing: border-box;
         }
 
@@ -177,12 +202,13 @@
             margin-bottom: 15px;
             text-align: center;
             font-size: 14px;
-            color: #333;
+            color: var(--text-color);
         }
     </style>
 </head>
 
 <body>
+<header>5G SDVN Simulation</header>
     <div id="simulation-area">
         <div id="canvas-container"></div>
         <div id="controls">
@@ -244,7 +270,7 @@
             </div>
 
             <div id="infoBox">
-                Hover over a vehicle to see details.
+                Click a vehicle to see details.
             </div>
             <p style="font-size:10px; margin-top: 20px; color: #555;">
                 Simulation based on concepts from "5G Software Defined Vehicular Networks". Blue lines=V2R, Green=V2V.
@@ -272,6 +298,7 @@
 
     <script>
         let vehicles = [];
+        let selectedVehicle = null;
         let rsus = [];
         let canvasWidth = 800;
         let canvasHeight = 400;
@@ -531,17 +558,51 @@
             handleHover();
         }
 
+        function mousePressed() {
+            let found = false;
+            for (let v of vehicles) {
+                if (v.contains(mouseX, mouseY)) {
+                    selectedVehicle = v;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                selectedVehicle = null;
+            }
+        }
+
         // ==========================
         // Drawing Functions (Remain mostly the same)
         // ==========================
         function drawEnvironment() {
             noStroke();
-            fill(roadColor);
+
+            // Draw upper road with gradient
+            let roadGrad1 = drawingContext.createLinearGradient(0, height / 3 - roadHeight / 2, 0, height / 3 + roadHeight / 2);
+            roadGrad1.addColorStop(0, '#555');
+            roadGrad1.addColorStop(1, '#333');
+            drawingContext.fillStyle = roadGrad1;
             rect(0, height / 3 - roadHeight / 2, width, roadHeight);
+
+            // Draw lower road with gradient
+            let roadGrad2 = drawingContext.createLinearGradient(0, 2 * height / 3 - roadHeight / 2, 0, 2 * height / 3 + roadHeight / 2);
+            roadGrad2.addColorStop(0, '#555');
+            roadGrad2.addColorStop(1, '#333');
+            drawingContext.fillStyle = roadGrad2;
             rect(0, 2 * height / 3 - roadHeight / 2, width, roadHeight);
-            stroke(255, 255, 0, 150);
-            strokeWeight(1.5);
-            drawingContext.setLineDash([10, 10]);
+
+            // Sidewalks or edges
+            fill(180);
+            rect(0, height / 3 - roadHeight / 2 - 5, width, 5);
+            rect(0, height / 3 + roadHeight / 2, width, 5);
+            rect(0, 2 * height / 3 - roadHeight / 2 - 5, width, 5);
+            rect(0, 2 * height / 3 + roadHeight / 2, width, 5);
+
+            // Lane markings
+            stroke(255, 255, 255, 200);
+            strokeWeight(2);
+            drawingContext.setLineDash([15, 15]);
             line(0, height / 3, width, height / 3);
             line(0, 2 * height / 3, width, 2 * height / 3);
             drawingContext.setLineDash([]);
@@ -614,13 +675,42 @@
             return 0.5 * (1 + erf((x - mean) / (stddev * Math.sqrt(2))));
         }
 
-        function calculatePhop(distance_m) {
+        function calculatePhop(distance_m, relativeSpeed_mps = 0) {
             if (distance_m <= 0) return 1.0;
-            // Use current global parameter values for experiment runs too
+
+            // Path loss with shadowing (log-normal)
             const pl_mean_dB = PL_CONST + PL_EXP * 10 * Math.log10(distance_m);
             const pl_max_dB = P_TX_dBm - P_NOISE_dBm - SNR_THRESHOLD_dB;
-            const probability = normCDF(pl_max_dB, pl_mean_dB, PL_SIGMA_dB);
-            return Math.max(probability, 0); // Ensure probability is not negative
+
+            // Shadowing effect (existing)
+            let shadowProb = normCDF(pl_max_dB, pl_mean_dB, PL_SIGMA_dB);
+
+            // --- Small-scale fading (Rayleigh) ---
+            // Rayleigh fading modeled as exponential power gain (mean=1)
+            // Severe fades reduce success probability
+            const rayleighGain = Math.random() * 2; // Exponential(1) approx via uniform*2
+            const fadingMargin_dB = 10 * Math.log10(rayleighGain + 1e-9); // Avoid log(0)
+            const effective_pl_dB = pl_mean_dB + fadingMargin_dB;
+
+            let fadingProb = normCDF(pl_max_dB, effective_pl_dB, PL_SIGMA_dB);
+
+            // --- Doppler effect ---
+            // Parameters
+            const carrierFreq_Hz = 2e9; // 2 GHz carrier
+            const speedOfLight = 3e8;   // m/s
+            const maxDopplerShift = (carrierFreq_Hz / speedOfLight) * relativeSpeed_mps; // Hz
+
+            // Normalize Doppler to a penalty factor (0 to 1)
+            const dopplerPenalty = Math.min(maxDopplerShift / 2000, 1); // Assume 2kHz max shift is severe
+            const dopplerFactor = 1 - dopplerPenalty; // Higher Doppler reduces success probability
+
+            // Composite probability: combine shadowing, fading, and Doppler
+            let combinedProb = shadowProb * fadingProb * dopplerFactor;
+
+            // Clamp to [0,1]
+            combinedProb = Math.max(0, Math.min(1, combinedProb));
+
+            return combinedProb;
         }
 
         // Modified to accept arrays and visual range param
@@ -679,7 +769,7 @@
 
                 if (v.isGateway) {
                     let dist_g2r = dist(v.x, v.y, rsu.x, rsu.y);
-                    let p_hop_v2i = calculatePhop(dist_g2r);
+                    let p_hop_v2i = calculatePhop(dist_g2r, Math.abs(v.speed));
                     pathPossible = (p_hop_v2i >= MIN_PROB_SUCCESS);
                     totalDelay = pathPossible ? (T_SLOT_MS / p_hop_v2i) : Infinity;
                 }
@@ -697,7 +787,8 @@
                             if (!nextHopNode) { pathPossible = false; break; }
 
                             let dist_v2v = dist(currentHopNode.x, currentHopNode.y, nextHopNode.x, nextHopNode.y);
-                            let p_hop_v2v = calculatePhop(dist_v2v);
+                            let relSpeed = Math.abs(currentHopNode.speed * currentHopNode.direction - nextHopNode.speed * nextHopNode.direction);
+                            let p_hop_v2v = calculatePhop(dist_v2v, relSpeed);
 
                             if (p_hop_v2v < MIN_PROB_SUCCESS) { pathPossible = false; break; }
                             totalDelay += (T_SLOT_MS / p_hop_v2v + T_RETRAN_MS);
@@ -713,7 +804,7 @@
 
                         if (pathPossible && currentHopNode.id === gateway.id) {
                             let dist_g2r = dist(gateway.x, gateway.y, rsu.x, rsu.y);
-                            let p_hop_v2i = calculatePhop(dist_g2r);
+                            let p_hop_v2i = calculatePhop(dist_g2r, Math.abs(gateway.speed));
                             if (p_hop_v2i < MIN_PROB_SUCCESS) pathPossible = false;
                             else {
                                 totalDelay += (T_SLOT_MS / p_hop_v2i);
@@ -729,13 +820,14 @@
                 }
                 else if (!v.isGateway && v.associatedRSU !== null) { // Case 3: In range, not gateway
                     let dist_v2g = dist(v.x, v.y, gateway.x, gateway.y);
-                    let p_hop_v2g = calculatePhop(dist_v2g);
+                    let relSpeed_v2g = Math.abs(v.speed * v.direction - gateway.speed * gateway.direction);
+                    let p_hop_v2g = calculatePhop(dist_v2g, relSpeed_v2g);
 
                     if (p_hop_v2g < MIN_PROB_SUCCESS) { pathPossible = false; }
                     else {
                         totalDelay += (T_SLOT_MS / p_hop_v2g + T_RETRAN_MS);
                         let dist_g2r = dist(gateway.x, gateway.y, rsu.x, rsu.y);
-                        let p_hop_v2i = calculatePhop(dist_g2r);
+                        let p_hop_v2i = calculatePhop(dist_g2r, Math.abs(gateway.speed));
                         if (p_hop_v2i < MIN_PROB_SUCCESS) pathPossible = false;
                         else {
                             totalDelay += (T_SLOT_MS / p_hop_v2i);
@@ -827,7 +919,8 @@
                 if (!nodeA || !nodeB) return Infinity;
                 let d = dist(nodeA.x, nodeA.y, nodeB.x, nodeB.y);
                 if (d <= 0) return 0;
-                let p_hop = calculatePhop(d);
+                let relSpeed = Math.abs(startNode.speed * startNode.direction - targetNode.speed * targetNode.direction);
+                let p_hop = calculatePhop(d, relSpeed);
                 // Use a simplified delay estimate for heuristic (can adjust)
                 return (p_hop >= MIN_PROB_SUCCESS) ? (T_SLOT_MS / p_hop) : Infinity;
             }
@@ -871,7 +964,8 @@
 
                     // Check if neighbor is within V2V range
                     if (d <= range) {
-                        let p_hop = calculatePhop(d);
+                        let relSpeed = Math.abs(currentNode.speed * currentNode.direction - neighbor.speed * neighbor.direction);
+                        let p_hop = calculatePhop(d, relSpeed);
 
                         // Check if the hop is viable
                         if (p_hop >= MIN_PROB_SUCCESS) {
@@ -932,7 +1026,7 @@
                 potentialGateways.forEach(pg => {
                     // 1. Calculate V2I Link Quality (Phop)
                     let d_v2i = dist(pg.x, pg.y, rsu.x, rsu.y);
-                    let phop = calculatePhop(d_v2i);
+                    let phop = calculatePhop(d_v2i, Math.abs(pg.speed));
 
                     // 2. Get Speed Score (Inverse relationship: lower speed = higher score)
                     // Add 1 to avoid division by zero and scale sensitivity near zero speed.
@@ -1081,16 +1175,15 @@
         // User Interaction (Hover - Remains the same)
         // ==========================
         function handleHover() {
-            let hoverText = "Hover over a vehicle to see details.";
-            let vehicleHovered = false;
-            for (let v of vehicles) {
-                if (v.contains(mouseX, mouseY)) { // Use method for checking bounds
-                    hoverText = `<b>Vehicle ID: ${v.id}</b><br>`;
-                    if (v.associatedRSU !== null) {
-                        let rsu = rsus.find(r => r.id === v.associatedRSU);
-                        if (!rsu) { hoverText += "Error: RSU not found<br>"; continue; }
-
-                        hoverText += `Assoc. RSU: ${v.associatedRSU}<br>`;
+            let infoText = "Click a vehicle to see details.";
+            if (selectedVehicle) {
+                let v = selectedVehicle;
+                infoText = `<b>Vehicle ID: ${v.id}</b><br>`;
+                if (v.associatedRSU !== null) {
+                    let rsu = rsus.find(r => r.id === v.associatedRSU);
+                    if (!rsu) { infoText += "Error: RSU not found<br>"; }
+                    else {
+                        infoText += `Assoc. RSU: ${v.associatedRSU}<br>`;
                         let status = "", pathInfo = "", hopInfo = "";
 
                         if (v.isGateway) {
@@ -1118,22 +1211,19 @@
                             status = `<span style='color:red;'>Disconnected</span>`;
                         }
 
-                        hoverText += `Status: ${status}<br>`;
-                        if (pathInfo) hoverText += `${pathInfo}<br>`;
-                        if (hopInfo) hoverText += `${hopInfo}<br>`;
+                        infoText += `Status: ${status}<br>`;
+                        if (pathInfo) infoText += `${pathInfo}<br>`;
+                        if (hopInfo) infoText += `${hopInfo}<br>`;
 
-                        hoverText += `Est. Delay: ${(v.calculatedDelay === Infinity || v.calculatedDelay === undefined) ? "<span style='color:red;'>Inf</span>" : v.calculatedDelay.toFixed(2) + ' ms'}<br>`;
-                        hoverText += `Alloc. BW: ${(v.allocatedBandwidth === null || v.allocatedBandwidth === undefined) ? 'N/A' : v.allocatedBandwidth.toFixed(1) + ' Mbps'}<br>`;
-
-                    } else {
-                        hoverText += `Status: <span style='color:red;'>Unassociated</span><br>`;
-                        hoverText += `Est. Delay: <span style='color:red;'>Inf</span><br>`;
+                        infoText += `Est. Delay: ${(v.calculatedDelay === Infinity || v.calculatedDelay === undefined) ? "<span style='color:red;'>Inf</span>" : v.calculatedDelay.toFixed(2) + ' ms'}<br>`;
+                        infoText += `Alloc. BW: ${(v.allocatedBandwidth === null || v.allocatedBandwidth === undefined) ? 'N/A' : v.allocatedBandwidth.toFixed(1) + ' Mbps'}<br>`;
                     }
-                    vehicleHovered = true;
-                    break;
+                } else {
+                    infoText += `Status: <span style='color:red;'>Unassociated</span><br>`;
+                    infoText += `Est. Delay: <span style='color:red;'>Inf</span><br>`;
                 }
             }
-            infoBox.html(hoverText);
+            infoBox.html(infoText);
         }
 
 
@@ -1180,14 +1270,43 @@
             }
             draw() {
                 let bodyColor = this.isGateway ? gatewayVehicleColor : (this.calculatedDelay !== Infinity && this.calculatedDelay !== undefined) ? connectedVehicleColor : unconnectedVehicleColor;
-                push(); translate(this.x, this.y); noStroke(); rectMode(CENTER); fill(bodyColor); stroke(30); strokeWeight(0.5);
-                rect(0, 0, this.width, this.height, 2); fill(50, 50, 100, 150); noStroke();
+                push();
+                translate(this.x, this.y);
+
+                // Draw wheels
+                fill(0);
+                ellipse(-this.width * 0.3, this.height * 0.6, this.height * 0.6, this.height * 0.6);
+                ellipse(this.width * 0.3, this.height * 0.6, this.height * 0.6, this.height * 0.6);
+
+                // Vehicle body with gradient
+                let grad = drawingContext.createLinearGradient(-this.width/2, 0, this.width/2, 0);
+                grad.addColorStop(0, lerpColor(color(bodyColor), color(255), 0.2).toString());
+                grad.addColorStop(1, lerpColor(color(bodyColor), color(0), 0.2).toString());
+                drawingContext.fillStyle = grad;
+                stroke(30);
+                strokeWeight(0.5);
+                rectMode(CENTER);
+                rect(0, 0, this.width, this.height, 3);
+
+                // Windshield highlight
+                noStroke();
+                fill(200, 220);
                 rect((this.direction === 1 ? 0.25 : -0.25) * this.width, 0, this.width * 0.3, this.height * 0.8, 1);
-                rectMode(CORNER); pop();
-                textAlign(CENTER, BOTTOM); textSize(9);
+
+                rectMode(CORNER);
+                pop();
+
+                // Delay text
+                textAlign(CENTER, BOTTOM);
+                textSize(9);
                 if (this.calculatedDelay !== undefined) {
-                    if (this.calculatedDelay !== Infinity) { fill(delayTextColor); text(this.calculatedDelay.toFixed(1) + 'ms', this.x, this.y - this.height * 0.7); }
-                    else { fill(infTextColor); text('Inf', this.x, this.y - this.height * 0.7); }
+                    if (this.calculatedDelay !== Infinity) {
+                        fill(delayTextColor);
+                        text(this.calculatedDelay.toFixed(1) + 'ms', this.x, this.y - this.height * 0.7);
+                    } else {
+                        fill(infTextColor);
+                        text('Inf', this.x, this.y - this.height * 0.7);
+                    }
                 }
             }
             // Helper for hover detection
